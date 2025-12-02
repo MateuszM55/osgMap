@@ -26,6 +26,8 @@
 
 #include "common.h"
 
+#include "camera_manip.cpp"
+
 using namespace osg;
 
 osg::ref_ptr<osgViewer::Viewer> viewer;
@@ -111,6 +113,7 @@ int main(int argc, char** argv)
         keyswitchManipulator->addMatrixManipulator( '5', "Orbit", new osgGA::OrbitManipulator() );
         keyswitchManipulator->addMatrixManipulator( '6', "FirstPerson", new osgGA::FirstPersonManipulator() );
         keyswitchManipulator->addMatrixManipulator( '7', "Spherical", new osgGA::SphericalManipulator() );
+        keyswitchManipulator->addMatrixManipulator( '8', "GoogleMaps", new GoogleMapsManipulator());
 
         std::string pathfile;
         double animationSpeed = 1.0;
