@@ -74,9 +74,99 @@ public:
         return osg::Matrixd::inverse(getInverseMatrix());
     }
 
-    // Unused matrix setters for this manipulator.
-    void setByMatrix(const osg::Matrixd&) override {}
-    void setByInverseMatrix(const osg::Matrixd&) override {}
+    void setByMatrix(const osg::Matrixd& matrix) override
+    {
+        // 1. Get Camera Physical Position (Eye)
+        osg::Vec3d eye = matrix.getTrans();
+
+        // 2. Get Look Vector (Negative Z of the matrix rotation)
+        osg::Vec3d lookVector(-matrix(2, 0), -matrix(2, 1), -matrix(2, 2));
+        lookVector.normalize();
+
+        // 3. Define "Local Up" and "Down"
+        // In ECEF, Up is the vector from Earth Center (0,0,0) to the Eye.
+        osg::Vec3d localUp = eye;
+        localUp.normalize();
+        osg::Vec3d localDown = -localUp;
+
+        // 4. Calculate Tilt
+        // Angle between LookVector and LocalDown (Gravity vector)
+        double dot = lookVector * localDown;
+        if (dot > 1.0) dot = 1.0;
+        if (dot < -1.0) dot = -1.0;
+        _tiltDeg = osg::RadiansToDegrees(std::acos(dot));
+
+        // Clamp tilt to valid range
+        if (_tiltDeg < 0.0) _tiltDeg = 0.0;
+        if (_tiltDeg > 90.0) _tiltDeg = 90.0;
+
+        // 5. Calculate Center (Intersection with the Globe)
+        // We need the radius of the earth/city surface.
+        // If we have a node, use its distance from origin. Otherwise assume
+        // standard Earth radius.
+        double earthRadius = 6371000.0; // Default meters
+        if (_node.valid())
+        {
+            // The center of the city model tells us the radius at this location
+            earthRadius = _node->getBound().center().length();
+        }
+
+        // Ray-Sphere Intersection Math
+        // Ray: P = Eye + t * LookVector
+        // Sphere: |P|^2 = R^2
+        // Substitute: |Eye + t*L|^2 = R^2
+        // Expands to Quadratic: a*t^2 + b*t + c = 0
+
+        // a = L . L (which is 1.0 because lookVector is normalized)
+        double a = 1.0;
+        // b = 2 * (Eye . L)
+        double b = 2.0 * (eye * lookVector);
+        // c = (Eye . Eye) - R^2
+        double c = (eye * eye) - (earthRadius * earthRadius);
+
+        double discriminant = b * b - 4 * a * c;
+
+        if (discriminant >= 0)
+        {
+            // Two intersections (entering and exiting the earth).
+            // We want the closest one (smallest positive t).
+            double t1 = (-b - std::sqrt(discriminant)) / (2.0 * a);
+            double t2 = (-b + std::sqrt(discriminant)) / (2.0 * a);
+
+            double t = -1.0;
+            if (t1 > 0 && t2 > 0)
+                t = std::min(t1, t2);
+            else if (t1 > 0)
+                t = t1;
+            else if (t2 > 0)
+                t = t2;
+
+            if (t > 0)
+            {
+                _distance = t;
+                _center = eye + lookVector * _distance;
+            }
+            else
+            {
+                // Intersection is behind us? Fallback.
+                // Just project 1000m in front.
+                _distance = 1000.0;
+                _center = eye + lookVector * _distance;
+            }
+        }
+        else
+        {
+            // Ray misses the Earth entirely (looking at space).
+            // Create a fake center point at the horizon distance
+            _distance = 10000.0; // Arbitrary horizon
+            _center = eye + lookVector * _distance;
+        }
+    }
+
+    void setByInverseMatrix(const osg::Matrixd& matrix) override
+    {
+        setByMatrix(osg::Matrixd::inverse(matrix));
+    }
 
     bool handle(const osgGA::GUIEventAdapter& ea,
                 osgGA::GUIActionAdapter& aa) override
