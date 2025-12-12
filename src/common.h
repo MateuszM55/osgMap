@@ -4,7 +4,7 @@
 namespace osgViewer { class Viewer; }
 
 
-osg::Node* process_landuse(osg::Matrixd& ltw, const std::string & file_path);
+osg::Node* process_landuse(osg::Matrixd& ltw, osg::BoundingBox& wbb, const std::string & file_path);
 osg::Node* process_water(osg::Matrixd& ltw, const std::string & file_path);
 osg::Node* process_buildings(osg::Matrixd& ltw, const std::string & file_path);
 osg::Node* process_roads(osg::Matrixd& ltw, const std::string & file_path);
@@ -84,9 +84,14 @@ class ConvertFromGeoProjVisitor : public osg::NodeVisitor
 
 public:
 
+    osg::BoundingBox _box;
+
+public:
+
     ConvertFromGeoProjVisitor() : 
         osg::NodeVisitor(osg::NodeVisitor::TRAVERSE_ALL_CHILDREN)
     {
+        _box.init();
     }
 
     virtual void apply(osg::Geode& node)
@@ -117,6 +122,8 @@ public:
                     osg::DegreesToRadians(geo[0]), geo[2], pos[0], pos[1], pos[2]);
 
                 (*verts)[k] = pos;
+
+                _box.expandBy(pos);
 
                 if constexpr (use_normals)
                 {

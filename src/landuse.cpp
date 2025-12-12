@@ -7,6 +7,7 @@
 #include <osgText/Text>
 #include <osg/MatrixTransform>
 #include <osg/ShapeDrawable>
+#include <osg/Depth>
 
 #include <osgSim/ShapeAttribute>
 
@@ -43,7 +44,7 @@ void parse_meta_data(osg::Node* model, Mapping & umap)
     }
 }
 
-osg::Node* process_landuse(osg::Matrixd& ltw, const std::string & file_path)
+osg::Node* process_landuse(osg::Matrixd& ltw, osg::BoundingBox& wbb, const std::string & file_path)
 {
     std::string land_file_path = file_path + "/gis_osm_landuse_a_free_1.shp";
 
@@ -69,10 +70,10 @@ osg::Node* process_landuse(osg::Matrixd& ltw, const std::string & file_path)
     ConvertFromGeoProjVisitor<true> cfgp;
     land_model->accept(cfgp);
 
+    wbb=cfgp._box;
+
     WorldToLocalVisitor ltwv(ltw, true);
     land_model->accept(ltwv);
-
-
 
 #if 0
     // dokonuj dodatkowego przetwarzania wierzcho³ków po transformacji z uk³adu Geo do WGS
@@ -80,10 +81,29 @@ osg::Node* process_landuse(osg::Matrixd& ltw, const std::string & file_path)
     parse_meta_data(land_model, umap);
 #endif
 
+    // requirement from water geometry to avoid z-fighting
+    // do not write to depth buffer - zmask set to false
+    land_model->getOrCreateStateSet()->setAttributeAndModes
+        (new osg::Depth(osg::Depth::LESS, 0, 1, false));
+    // draw terrain first
+    land_model->getOrCreateStateSet()->setRenderBinDetails(-10, "RenderBin");
+    // do not nest this render bin
+    land_model->getOrCreateStateSet()->setNestRenderBins(false);
+
+
+
+
+
+
 
 
 
     // GOOD LUCK!
+
+
+
+
+
 
 
 
