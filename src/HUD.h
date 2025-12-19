@@ -24,6 +24,5 @@ bool castCameraRayIntersection(osgViewer::Viewer* viewer, osg::Node* scene,
                                osg::Vec3d& out_point, osg::Vec3d& out_normal);
 std::string getLandInfoAtIntersection(osg::Node* sceneRoot,
                                       const osg::Vec3d& hitPoint);
-std::string convertToUTF8(const std::string& input);
-
 #endif
+
