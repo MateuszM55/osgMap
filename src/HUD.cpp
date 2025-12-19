@@ -66,7 +66,7 @@ osg::Camera* createHUD(const std::string& logoFile, float scale, int winWidth,
     g_hudText->setCharacterSize(28.0f);
     g_hudText->setColor(osg::Vec4(1, 1, 1, 1));
     g_hudText->setPosition(osg::Vec3(20, winHeight - 40, 0));
-    g_hudText->setText(L"Zacznij ruch kamerą aby pobrać dane na temat terenu"); // default text
+    g_hudText->setText("Move the camera in order to gather data about terrain"); // default text
 
 
     geode->addDrawable(g_hudText);
@@ -208,3 +208,4 @@ std::string getLandInfoAtIntersection(osg::Node* sceneRoot,
 
     return "No land data found at intersection";
 }
+
