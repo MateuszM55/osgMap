@@ -37,7 +37,7 @@ if(DEFINED ENV{OSG_DIR} AND OSG_ROOT_DIR STREQUAL "")
 endif()
 
 # Znajdź pakiet OpenSceneGraph z wymaganymi komponentami
-find_package(OpenSceneGraph REQUIRED COMPONENTS OpenThreads osg osgDB osgGA osgUtil osgViewer osgSim)
+find_package(OpenSceneGraph REQUIRED COMPONENTS OpenThreads osg osgDB osgGA osgUtil osgViewer osgSim osgText)
 
 # Sprawdź, czy OpenSceneGraph zostało znalezione i wyświetl informację
 if(OPENSCENEGRAPH_FOUND)
