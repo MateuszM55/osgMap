@@ -1,3 +1,5 @@
+// TODO: Grupa 1 - Identyfikacja geometrii i kultur terenu (lasy, parki, itp.)
+// Rozpoczêcie prac nad odrêbnymi technikami wyœwietlania.
 #include <osgDB/ReadFile>
 #include <osgUtil/Optimizer>
 #include <osg/CoordinateSystemNode>
