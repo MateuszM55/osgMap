@@ -296,13 +296,9 @@ int main(int argc, char** argv)
                 std::ostringstream ss;
 
                 osg::Vec3d hit, normal;
-                if (castCameraRayIntersection(viewer, finalRoot, hit, normal))
-                {
-                    // Get land information
-                    std::string landInfo =
-                        getLandInfoAtIntersection(finalRoot, hit);
-                    ss << "Land Data:\n" << landInfo;
-                }
+                std::string landInfo =
+                    getLandInfoAtIntersection(finalRoot, hit);
+                ss << "Land Data:\n" << landInfo;
                 hudSetText(ss.str());
             }
             // Update the "previous state"
