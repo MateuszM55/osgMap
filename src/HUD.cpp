@@ -1,6 +1,30 @@
 #include "HUD.h"
 #include "common.h"
 
+// hud.vert
+static const char* hudVertShader = R"(
+#version 120
+void main()
+{
+    gl_Position = gl_ModelViewProjectionMatrix * gl_Vertex;
+    gl_TexCoord[0] = gl_MultiTexCoord0;
+    gl_FrontColor = gl_Color;
+}
+)";
+
+static const char* hudFragShader = R"(
+#version 120
+uniform sampler2D texture0;
+uniform float u_alpha;
+
+void main()
+{
+    vec4 tex = texture2D(texture0, gl_TexCoord[0].st);
+    tex.a *= u_alpha;
+    gl_FragColor = tex * gl_Color;
+}
+)";
+osg::ref_ptr<osg::Uniform> g_hudAlpha;
 
 osg::Camera* createHUD(const std::string& logoFile, float scale, int winWidth,
                        int winHeight)
@@ -55,15 +79,41 @@ osg::Camera* createHUD(const std::string& logoFile, float scale, int winWidth,
     quad->addPrimitiveSet(new osg::DrawArrays(GL_QUADS, 0, 4));
 
     osg::ref_ptr<osg::Geode> geode = new osg::Geode();
-    //geode->addDrawable(bgQuad);
+    // geode->addDrawable(bgQuad);
     geode->addDrawable(quad);
 
     osg::ref_ptr<osg::StateSet> ss = geode->getOrCreateStateSet();
+    osg::ref_ptr<osg::Program> program = new osg::Program;
+    program->addShader(new osg::Shader(osg::Shader::VERTEX, hudVertShader));
+    program->addShader(new osg::Shader(osg::Shader::FRAGMENT, hudFragShader));
+
+
+    ss->setAttributeAndModes(program.get(), osg::StateAttribute::ON);
+
+    // Alpha uniform (start hidden)
+    osg::ref_ptr<osg::Uniform> alphaUniform = new osg::Uniform("u_alpha", 0.0f);
+
+    ss->addUniform(alphaUniform.get());
+    g_hudAlpha = alphaUniform;
+
+    // Texture sampler
+    ss->addUniform(new osg::Uniform("texture0", 0));
     ss->setTextureAttributeAndModes(0, tex.get(), osg::StateAttribute::ON);
     ss->setMode(GL_LIGHTING, osg::StateAttribute::OFF);
     ss->setMode(GL_BLEND, osg::StateAttribute::ON);
     ss->setRenderingHint(osg::StateSet::TRANSPARENT_BIN);
     g_hudText = new osgText::Text;
+    g_hudText->setDataVariance(osg::Object::DYNAMIC);
+    g_hudText->setUseDisplayList(false);
+
+    osg::StateSet* textSS = g_hudText->getOrCreateStateSet();
+
+    textSS->setMode(GL_BLEND, osg::StateAttribute::ON);
+    textSS->setRenderingHint(osg::StateSet::TRANSPARENT_BIN);
+
+    // Important: disable depth test for HUD text
+    textSS->setMode(GL_DEPTH_TEST, osg::StateAttribute::OFF);
+    textSS->addUniform(alphaUniform.get()); 
     g_hudText->setFont("font/OpenSans-VariableFont_wdth,wght.ttf");
     g_hudText->setCharacterSize(36.0f);
     g_hudText->setColor(osg::Vec4(1, 1, 1, 1)); // White text
@@ -90,8 +140,10 @@ osg::Camera* createHUD(const std::string& logoFile, float scale, int winWidth,
 void hudSetText(const std::string& text)
 {
     if (g_hudText.valid())
+    {
         g_hudText->setText(
             osgText::String(text, osgText::String::ENCODING_UTF8));
+    }
 }
 
 static inline void ltrim(std::string& s)
