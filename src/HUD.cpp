@@ -55,6 +55,7 @@ osg::Camera* createHUD(const std::string& logoFile, float scale, int winWidth,
     quad->addPrimitiveSet(new osg::DrawArrays(GL_QUADS, 0, 4));
 
     osg::ref_ptr<osg::Geode> geode = new osg::Geode();
+    //geode->addDrawable(bgQuad);
     geode->addDrawable(quad);
 
     osg::ref_ptr<osg::StateSet> ss = geode->getOrCreateStateSet();
@@ -64,10 +65,19 @@ osg::Camera* createHUD(const std::string& logoFile, float scale, int winWidth,
     ss->setRenderingHint(osg::StateSet::TRANSPARENT_BIN);
     g_hudText = new osgText::Text;
     g_hudText->setFont("font/OpenSans-VariableFont_wdth,wght.ttf");
-    g_hudText->setCharacterSize(28.0f);
-    g_hudText->setColor(osg::Vec4(1, 1, 1, 1));
+    g_hudText->setCharacterSize(36.0f);
+    g_hudText->setColor(osg::Vec4(1, 1, 1, 1)); // White text
+
+    // Add black outline
+    g_hudText->setBackdropType(osgText::Text::OUTLINE);
+    g_hudText->setBackdropColor(osg::Vec4(0, 0, 0, 1)); // Black outline
+    g_hudText->setBackdropOffset(
+        0.08f); // Adjust thickness (0.05-0.15 works well)
+
     g_hudText->setPosition(osg::Vec3(20, winHeight - 40, 0));
-    g_hudText->setText("Move the camera in order to gather data about terrain"); // default text
+    g_hudText->setText(
+        "Move the camera in order to gather data about terrain"); // default
+                                                                  // text
 
 
     geode->addDrawable(g_hudText);
@@ -79,8 +89,9 @@ osg::Camera* createHUD(const std::string& logoFile, float scale, int winWidth,
 
 void hudSetText(const std::string& text)
 {
-    if (g_hudText.valid()) 
-        g_hudText->setText(osgText::String(text, osgText::String::ENCODING_UTF8));
+    if (g_hudText.valid())
+        g_hudText->setText(
+            osgText::String(text, osgText::String::ENCODING_UTF8));
 }
 
 static inline void ltrim(std::string& s)
@@ -171,14 +182,13 @@ std::string getLandInfoAtIntersection(osg::Node* sceneRoot,
                             std::string att = attr.getString();
                             trim(att);
                             if (!att.empty())
-                            {   
+                            {
                                 if (collectedCount >= MAX_RECORDS)
                                     break; // stop processing intersections
                                 auto key = std::make_pair(fclass, att);
 
-                                if (!globalRecords.insert(key).second)
-                                    continue;
-               
+                                if (!globalRecords.insert(key).second) continue;
+
                                 std::string fclassPL = translateFclass(fclass);
                                 allInfo << fclassPL << ": " << att;
                                 ++collectedCount;
@@ -197,6 +207,7 @@ std::string getLandInfoAtIntersection(osg::Node* sceneRoot,
 
     return "No land data found at intersection";
 }
+
 
 
 
