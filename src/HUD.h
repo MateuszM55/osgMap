@@ -26,41 +26,133 @@ std::string getLandInfoAtIntersection(osg::Node* sceneRoot,
 const std::unordered_map<std::string, std::string> fclassPL = {
     { "residential", "osiedle" },
     { "living_street", "ulica mieszkalna" },
-    { "primary", u8"droga główna" },
-    { "primary_link", u8"droga główna łącząca" },
-    { "secondary", u8"droga drugorzędna" },
-    { "secondary_link", u8"droga drugorzędna łącząca" },
+    { "primary", "droga główna" },
+    { "primary_link", "droga główna łącząca" },
+    { "secondary", "droga drugorzędna" },
+    { "secondary_link", "droga drugorzędna łącząca" },
     { "tertiary", "droga lokalna" }, 
     { "tertiary_link", "droga lokalna łącząca" }, 
-    { "motorway", u8"autostrada" },
-    { "motorway_link", u8"autostrada - połączenie" },
-    { "footway", u8"chodnik" },
+    { "motorway", "autostrada" },
+    { "motorway_link", "autostrada - połączenie" },
+    { "footway", "chodnik" },
     { "nature_reserve", "rezerwat" },
     { "commercial", u8"przedsiębiorstwo" },
-    { "forest", u8"las"},
-    { "reservoir", u8"zbiornik" },
-    { "wetland", u8"mokradło" },
-    { "riverbank", u8"brzeg rzeki" },
-    { "industrial", u8"zakład przemysłowy" },
-    { "path", u8"ścieżka" },
-    { "unclassified", u8"niezaklasyfikowane" },
-    { "trunk", u8"zrąb" },
-    { "scrub", u8"zarośla" },
-    { "service", u8"połączenie" },
-    { "water", u8"wody" },
-    { "retail", u8"sprzedawca" },
-    { "service", u8"połączenie" },
-    { "track_grade3", u8"droga trzeciorzędna" },
-    { "track_grade4", u8"droga czwartorzędna" },
-    { "track_grade5", u8"droga piątorzędna" },
-    { "track", u8"trasa" },
+    { "forest", "las"},
+    { "reservoir", "zbiornik" },
+    { "wetland", "mokradło" },
+    { "riverbank", "brzeg rzeki" },
+    { "industrial", "zakład przemysłowy" },
+    { "path", "ścieżka" },
+    { "unclassified", "niezaklasyfikowane" },
+    { "trunk", "zrąb" },
+    { "scrub", "zarośla" },
+    { "service", "połączenie" },
+    { "water", "wody" },
+    { "retail", "sprzedawca" },
+    { "service", "połączenie" },
+    { "track_grade1", "droga" },
+    { "track_grade2", "droga drugorzędna" },
+    { "track_grade3", "droga trzeciorzędna" },
+    { "track_grade4", "droga czwartorzędna" },
+    { "track_grade5", "droga piątorzędna" },
+    { "track", "trasa" },
     { "cemetery", "cmentarz" },
-    { "allotments", u8"działki" },
-    { "grass", u8"polana" },
-    { "quarry", u8"kamieniołom" },
+    { "allotments", "działki" },
+    { "grass", "polana" },
+    { "quarry", "kamieniołom" },
     { "recreation_ground", u8"pole rekreacyjne" },
-    { "meadow", u8"łąka" },
-    { "grass", u8"łąka" },
-    { "grass", u8"łąka" },
+    { "meadow", "łąka" },
+    { "grass", "łąka" },
+    { "grass", "łąka" },
+    { "cycleway", "ścieżka rowerowa" }
+};
+// Create a resize handler class
+class HUDResizeHandler : public osgGA::GUIEventHandler {
+public:
+    HUDResizeHandler(osg::Camera* hudCamera, osg::Geode* geode,
+                     const std::string& logoFile, float scale)
+        : _hudCamera(hudCamera), _geode(geode), _logoFile(logoFile),
+          _scale(scale)
+    {}
+
+    virtual bool handle(const osgGA::GUIEventAdapter& ea,
+                        osgGA::GUIActionAdapter& aa)
+    {
+        if (ea.getEventType() == osgGA::GUIEventAdapter::RESIZE)
+        {
+            int width = ea.getWindowWidth();
+            int height = ea.getWindowHeight();
+
+            // Update HUD camera projection
+            _hudCamera->setProjectionMatrix(
+                osg::Matrix::ortho2D(0, width, 0, height));
+
+            // Update logo and text positions
+            updateHUDElements(width, height);
+
+            return false; // Allow other handlers to process this event too
+        }
+        return false;
+    }
+
+private:
+    void updateHUDElements(int winWidth, int winHeight)
+    {
+        // Find the logo quad and text in the geode
+        for (unsigned int i = 0; i < _geode->getNumDrawables(); i++)
+        {
+            osg::Drawable* drawable = _geode->getDrawable(i);
+
+            // Update logo quad
+            if (osg::Geometry* quad = dynamic_cast<osg::Geometry*>(drawable))
+            {
+                if (osg::Vec3Array* verts =
+                        dynamic_cast<osg::Vec3Array*>(quad->getVertexArray()))
+                {
+                    // Check if this is the logo quad (has 4 vertices and
+                    // texture)
+                    if (verts->size() == 4 && quad->getStateSet()
+                        && quad->getStateSet()->getTextureAttribute(
+                            0, osg::StateAttribute::TEXTURE))
+                    {
+                        // Get texture to calculate size
+                        osg::Texture2D* tex = dynamic_cast<osg::Texture2D*>(
+                            quad->getStateSet()->getTextureAttribute(
+                                0, osg::StateAttribute::TEXTURE));
+
+                        if (tex && tex->getImage())
+                        {
+                            float w = tex->getImage()->s() * _scale;
+                            float h = tex->getImage()->t() * _scale;
+                            float x1 = winWidth - w - 20;
+                            float y1 = winHeight - h - 20;
+                            float x2 = x1 + w;
+                            float y2 = y1 + h;
+
+                            // Update vertex positions
+                            (*verts)[0] = osg::Vec3(x1, y1, 0);
+                            (*verts)[1] = osg::Vec3(x2, y1, 0);
+                            (*verts)[2] = osg::Vec3(x2, y2, 0);
+                            (*verts)[3] = osg::Vec3(x1, y2, 0);
+
+                            verts->dirty();
+                            quad->dirtyBound();
+                        }
+                    }
+                }
+            }
+
+            // Update text position
+            if (osgText::Text* text = dynamic_cast<osgText::Text*>(drawable))
+            {
+                text->setPosition(osg::Vec3(20, winHeight - 40, 0));
+            }
+        }
+    }
+
+    osg::Camera* _hudCamera;
+    osg::Geode* _geode;
+    std::string _logoFile;
+    float _scale;
 };
 #endif
