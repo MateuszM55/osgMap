@@ -5,6 +5,17 @@ set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+if (MSVC)
+    # MSVC: force UTF-8 for source and execution character set
+    add_compile_options(/utf-8)
+else()
+    # GCC / Clang
+    add_compile_options(
+        -finput-charset=UTF-8
+        -fexec-charset=UTF-8
+    )
+endif()
+
 # === Zmodyfikowana sekcja dla OpenSceneGraph ===
 # Definiujemy zmienną dla ścieżki do OpenSceneGraph
 set(OSG_ROOT_DIR "" CACHE PATH "Specify the root directory of your OpenSceneGraph installation")
