@@ -1,4 +1,4 @@
-#include "HUD.h"
+﻿#include "HUD.h"
 #include "common.h"
 
 // hud.vert
@@ -45,19 +45,23 @@ osg::Camera* createHUD(const std::string& logoFile, float scale, int winWidth,
     hudCamera->setAllowEventFocus(false);
 
     // --- Load Texture ---
-    osg::ref_ptr<osg::Image> image = osgDB::readRefImageFile(logoFile);
-    if (!image)
+    static osg::ref_ptr<osg::Texture2D> tex;
+    static float w = 0.f;
+    static float h = 0.f;
+    if (!tex.valid())
     {
-        osg::notify(osg::WARN)
-            << "Could not load HUD image: " << logoFile << std::endl;
-        return hudCamera;
+        osg::ref_ptr<osg::Image> image = osgDB::readRefImageFile(logoFile);
+        if (!image)
+        {
+            osg::notify(osg::WARN)
+                << "Could not load HUD image: " << logoFile << std::endl;
+            return hudCamera;
+        }
+        tex = new osg::Texture2D(image);
+        tex->setResizeNonPowerOfTwoHint(false);
+        w = image->s() * scale;
+        h = image->t() * scale;
     }
-
-    osg::ref_ptr<osg::Texture2D> tex = new osg::Texture2D(image);
-
-    // --- Quad Geometry (top-right corner) ---
-    float w = image->s() * scale;
-    float h = image->t() * scale;
     float x1 = winWidth - w - 20; // 20px margin from right
     float y1 = winHeight - h - 20; // 20px margin from top
     float x2 = x1 + w;
@@ -86,7 +90,7 @@ osg::Camera* createHUD(const std::string& logoFile, float scale, int winWidth,
     // geode->addDrawable(bgQuad);
     geode->addDrawable(quad);
 
-   osg::ref_ptr<osg::StateSet> ss = geode->getOrCreateStateSet();
+    osg::ref_ptr<osg::StateSet> ss = geode->getOrCreateStateSet();
     // Alpha uniform (start hidden)
     osg::ref_ptr<osg::Uniform> alphaUniform = new osg::Uniform("u_alpha", 0.0f);
     ss->addUniform(alphaUniform.get());
@@ -254,8 +258,3 @@ std::string getLandInfoAtIntersection(osg::Node* sceneRoot,
 
     return "No land data found at intersection";
 }
-
-
-
-
-
