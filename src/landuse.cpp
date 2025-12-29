@@ -1,4 +1,4 @@
-#include <osgDB/ReadFile>
+ï»¿#include <osgDB/ReadFile>
 #include <osgUtil/Optimizer>
 #include <osg/CoordinateSystemNode>
 
@@ -33,7 +33,7 @@ void parse_meta_data(osg::Node* model, Mapping & umap)
 
         for (unsigned j = 0; j < sal->size(); j++)
         {
-            // sprawdzamy czy atrybut nazywa siê "fclass"
+            // sprawdzamy czy atrybut nazywa siÄ™ "fclass"
             // dla terenu to opis typu kultury
             if ((*sal)[j].getName().find("fclass") != std::string::npos)
             {
@@ -66,7 +66,7 @@ osg::Node* process_landuse(osg::Matrixd& ltw, osg::BoundingBox& wbb, const std::
         osg::DegreesToRadians(mgbb.center().x()), 0.0, ltw);
 
 
-    // Transformacja ze wspó³rzêdnych geograficznych (GEO) do wspó³rzêdnych œwiata (WGS)
+    // Transformacja ze wspÃ³Å‚rzÄ™dnych geograficznych (GEO) do wspÃ³Å‚rzÄ™dnych Å›wiata (WGS)
     ConvertFromGeoProjVisitor<true> cfgp;
     land_model->accept(cfgp);
 
@@ -76,7 +76,7 @@ osg::Node* process_landuse(osg::Matrixd& ltw, osg::BoundingBox& wbb, const std::
     land_model->accept(ltwv);
 
 #if 0
-    // dokonuj dodatkowego przetwarzania wierzcho³ków po transformacji z uk³adu Geo do WGS
+    // dokonuj dodatkowego przetwarzania wierzchoÅ‚kÃ³w po transformacji z ukÅ‚adu Geo do WGS
     Mapping umap;
     parse_meta_data(land_model, umap);
 #endif

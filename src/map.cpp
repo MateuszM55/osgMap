@@ -1,4 +1,4 @@
-#include <osgDB/ReadFile>
+﻿#include <osgDB/ReadFile>
 #include <osgUtil/Optimizer>
 #include <osg/CoordinateSystemNode>
 
@@ -34,7 +34,6 @@ float g_currentAlpha = 0.0f;
 
 osg::ref_ptr<osgViewer::Viewer> viewer;
 osg::ref_ptr<osg::EllipsoidModel> ellipsoid;
-
 
 
 int main(int argc, char** argv)
@@ -152,8 +151,7 @@ int main(int argc, char** argv)
         std::string pathfile;
         double animationSpeed = 1.0;
         while (arguments.read("--speed", animationSpeed))
-        {
-        }
+        {}
         char keyForAnimationPath = '8';
         while (arguments.read("-p", pathfile))
         {
@@ -271,9 +269,9 @@ int main(int argc, char** argv)
     viewer->realize();
 
     // 4. Now viewport exists → safe to read size
-    
     int w = viewer->getCamera()->getViewport()->width();
     int h = viewer->getCamera()->getViewport()->height();
+
     // 5. Create HUD
     osg::Camera* hud = createHUD("images/logo.png", 0.3f, w, h);
 
@@ -287,7 +285,7 @@ int main(int argc, char** argv)
     // 6. Add HUD AFTER realize() (totally allowed)
     finalRoot->addChild(hud);
 
-   // 7. Main loop
+    // 7. Main loop
     bool wasMoving = false;
     const float FADE_SPEED = 2.0f;
 

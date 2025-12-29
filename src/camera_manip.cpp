@@ -1,4 +1,4 @@
-#include <osgGA/CameraManipulator>
+ï»¿#include <osgGA/CameraManipulator>
 #include <osgGA/GUIEventAdapter>
 #include <osgGA/GUIActionAdapter>
 #include <osg/Matrix>
@@ -44,14 +44,17 @@ public:
         resetFromBounds();
     }
 
-    // Build the view matrix each frame: eye along the center direction at a given distance, global Z as up.
+    // Build the view matrix each frame: eye along the center direction at a
+    // given distance, global Z as up.
     osg::Matrixd getInverseMatrix() const override
     {
-        // Local tangent frame at `_center`: up is radial from origin, east is Z x up, north is up x east.
+        // Local tangent frame at `_center`: up is radial from origin, east is Z
+        // x up, north is up x east.
         osg::Vec3d up = _center; // radial up
         up.normalize();
         osg::Vec3d east = osg::Vec3d(0, 0, 1) ^ up;
-        if (east.length2() == 0.0) {
+        if (east.length2() == 0.0)
+        {
             // Avoid degeneracy at poles: pick arbitrary east
             east.set(1.0, 0.0, 0.0);
         }
@@ -59,9 +62,11 @@ public:
         osg::Vec3d north = up ^ east; // geographic north
         north.normalize();
 
-        // Eye lies in the plane spanned by local north and up, controlled by tilt angle [45,90] deg.
+        // Eye lies in the plane spanned by local north and up, controlled by
+        // tilt angle [45,90] deg.
         const double tiltRad = osg::DegreesToRadians(_tiltDeg);
-        osg::Vec3d offset = (-north * std::sin(tiltRad)) + (up * std::cos(tiltRad));
+        osg::Vec3d offset =
+            (-north * std::sin(tiltRad)) + (up * std::cos(tiltRad));
         offset.normalize();
         osg::Vec3d eye = _center + offset * _distance;
         // Keep screen up aligned to geographic north (no yaw/rotation).
@@ -76,8 +81,8 @@ public:
 
     // Initialize camera manipulator state from an arbitrary view matrix.
     // Extracts camera position and orientation, then computes the manipulator's
-    // internal parameters (_center, _distance, _tiltDeg) by ray-sphere intersection
-    // with the scene's bounding sphere.
+    // internal parameters (_center, _distance, _tiltDeg) by ray-sphere
+    // intersection with the scene's bounding sphere.
     void setByMatrix(const osg::Matrixd& matrix) override
     {
         // Extract camera position from matrix translation component
@@ -98,31 +103,33 @@ public:
             lookVector.set(0, 0, -1);
         }
 
-        // Compute local "up" direction as the radial direction from world origin
-        // This assumes a spherical earth model where "up" points away from center
+        // Compute local "up" direction as the radial direction from world
+        // origin This assumes a spherical earth model where "up" points away
+        // from center
         osg::Vec3d localUp = eye;
         localUp.normalize();
-        
+
         if (localUp.isNaN())
         {
             localUp.set(0, 0, 1);
         }
-        
+
         // Local "down" points toward the earth center
         osg::Vec3d localDown = -localUp;
 
-        // Calculate tilt angle from the angle between look direction and local down
-        // dot product gives cos(angle) between vectors
+        // Calculate tilt angle from the angle between look direction and local
+        // down dot product gives cos(angle) between vectors
         double dot = lookVector * localDown;
-        if (dot > 1.0) dot = 1.0;   // Clamp to valid range for acos
+        if (dot > 1.0) dot = 1.0; // Clamp to valid range for acos
         if (dot < -1.0) dot = -1.0;
         _tiltDeg = osg::RadiansToDegrees(std::acos(dot));
 
-        // Enforce tilt constraints: 0° (top-down) to 45° (maximum oblique)
+        // Enforce tilt constraints: 0Â° (top-down) to 45Â° (maximum oblique)
         if (_tiltDeg < 0.0) _tiltDeg = 0.0;
         if (_tiltDeg > 45.0) _tiltDeg = 45.0;
 
-        // Determine earth radius from scene bounds (default: Earth's mean radius in meters)
+        // Determine earth radius from scene bounds (default: Earth's mean
+        // radius in meters)
         double earthRadius = 6371000.0;
         if (_node.valid())
         {
@@ -134,10 +141,11 @@ public:
             }
         }
 
-        // Ray-sphere intersection to find where the look vector hits the earth surface
-        // Solve: |eye + t*lookVector|^2 = earthRadius^2
-        // Expanding: a*t^2 + b*t + c = 0
-        double a = 1.0;  // lookVector is normalized, so (lookVector · lookVector) = 1
+        // Ray-sphere intersection to find where the look vector hits the earth
+        // surface Solve: |eye + t*lookVector|^2 = earthRadius^2 Expanding:
+        // a*t^2 + b*t + c = 0
+        double a =
+            1.0; // lookVector is normalized, so (lookVector Â· lookVector) = 1
         double b = 2.0 * (eye * lookVector);
         double c = (eye * eye) - (earthRadius * earthRadius);
 
@@ -152,7 +160,8 @@ public:
             double t1 = (-b - std::sqrt(discriminant)) / (2.0 * a);
             double t2 = (-b + std::sqrt(discriminant)) / (2.0 * a);
 
-            // Choose nearest positive intersection (camera looking toward sphere)
+            // Choose nearest positive intersection (camera looking toward
+            // sphere)
             if (t1 > 0 && t2 > 0)
                 t = std::min(t1, t2);
             else if (t1 > 0)
@@ -162,7 +171,7 @@ public:
         }
 
         double minDistance = 10.0;
-        
+
         // Update manipulator state if valid intersection found
         if (t > 0)
         {
@@ -250,7 +259,7 @@ public:
             _lastX = x;
             _lastY = y;
 
-            markMovement(); 
+            markMovement();
             aa.requestRedraw();
             return true;
         }
@@ -263,7 +272,7 @@ public:
                      : 1.25);
             _distance = std::max(_distance, 10.0);
 
-            markMovement(); 
+            markMovement();
             aa.requestRedraw();
             return true;
         }
@@ -273,7 +282,7 @@ public:
             && ea.getKey() == osgGA::GUIEventAdapter::KEY_Home)
         {
             resetFromBounds();
-            markMovement(); 
+            markMovement();
             aa.requestRedraw();
             return true;
         }
@@ -292,9 +301,3 @@ private:
     double _lastMoveTime;
     double _movementTimeout;
 };
-
-
-
-
-
-
