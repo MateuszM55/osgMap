@@ -20,16 +20,16 @@ using namespace osg;
 
 using Mapping = std::map<std::string, std::vector<osg::ref_ptr<osg::Node>>>;
 
-void parse_meta_data(osg::Node* model, Mapping & umap)
+void parse_meta_data(osg::Node* model, Mapping& umap)
 {
-    osg::Group * group = model->asGroup();
+    osg::Group* group = model->asGroup();
 
     for (unsigned i = 0; i < group->getNumChildren(); i++)
     {
         osg::Node* kido = group->getChild(i);
-        osgSim::ShapeAttributeList * sal = (osgSim::ShapeAttributeList*)kido->getUserData();
-        if (!sal)
-            continue;
+        osgSim::ShapeAttributeList* sal =
+            (osgSim::ShapeAttributeList*)kido->getUserData();
+        if (!sal) continue;
 
         for (unsigned j = 0; j < sal->size(); j++)
         {
@@ -44,7 +44,8 @@ void parse_meta_data(osg::Node* model, Mapping & umap)
     }
 }
 
-osg::Node* process_landuse(osg::Matrixd& ltw, osg::BoundingBox& wbb, const std::string & file_path)
+osg::Node* process_landuse(osg::Matrixd& ltw, osg::BoundingBox& wbb,
+                           const std::string& file_path)
 {
     std::string land_file_path = file_path + "/gis_osm_landuse_a_free_1.shp";
 
@@ -66,11 +67,12 @@ osg::Node* process_landuse(osg::Matrixd& ltw, osg::BoundingBox& wbb, const std::
         osg::DegreesToRadians(mgbb.center().x()), 0.0, ltw);
 
 
-    // Transformacja ze współrzędnych geograficznych (GEO) do współrzędnych świata (WGS)
+    // Transformacja ze współrzędnych geograficznych (GEO) do współrzędnych
+    // świata (WGS)
     ConvertFromGeoProjVisitor<true> cfgp;
     land_model->accept(cfgp);
 
-    wbb=cfgp._box;
+    wbb = cfgp._box;
 
     WorldToLocalVisitor ltwv(ltw, true);
     land_model->accept(ltwv);
@@ -83,29 +85,15 @@ osg::Node* process_landuse(osg::Matrixd& ltw, osg::BoundingBox& wbb, const std::
 
     // requirement from water geometry to avoid z-fighting
     // do not write to depth buffer - zmask set to false
-    land_model->getOrCreateStateSet()->setAttributeAndModes
-        (new osg::Depth(osg::Depth::LESS, 0, 1, false));
+    land_model->getOrCreateStateSet()->setAttributeAndModes(
+        new osg::Depth(osg::Depth::LESS, 0, 1, false));
     // draw terrain first
     land_model->getOrCreateStateSet()->setRenderBinDetails(-10, "RenderBin");
     // do not nest this render bin
     land_model->getOrCreateStateSet()->setNestRenderBins(false);
 
 
-
-
-
-
-
-
-
     // GOOD LUCK!
-
-
-
-
-
-
-
 
 
     return land_model.release();
