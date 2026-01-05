@@ -77,6 +77,29 @@ public:
             (-north * std::sin(tiltRad)) + (up * std::cos(tiltRad));
         offset.normalize();
         osg::Vec3d eye = _center + offset * _distance;
+
+        // Determine earth radius to prevent camera from going underground
+        double earthRadius = 6371000.0;
+        if (_node.valid())
+        {
+            double r = _node->getBound().radius();
+            if (r > 1000.0)
+            {
+                earthRadius = r;
+            }
+        }
+
+        // Ensure eye stays above ground with minimum clearance
+        double eyeDistanceFromOrigin = eye.length();
+        double minEyeDistance = earthRadius + 10.0; // 10m minimum clearance
+        
+        if (eyeDistanceFromOrigin < minEyeDistance)
+        {
+            // Move eye radially outward to maintain minimum clearance
+            eye.normalize();
+            eye *= minEyeDistance;
+        }
+
         // Keep screen up aligned to geographic north (no yaw/rotation).
         return osg::Matrixd::lookAt(eye, _center, north);
     }
