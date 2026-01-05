@@ -1,4 +1,6 @@
 #include <osgDB/ReadFile>
+#include <osgDB/WriteFile>
+
 #include <osgUtil/Optimizer>
 #include <osg/CoordinateSystemNode>
 
@@ -23,6 +25,7 @@
 #include <algorithm>
 #include <unordered_map>
 #include <cmath>
+#include <filesystem>
 
 #include "common.h"
 
@@ -138,6 +141,7 @@ osg::StateSet* createTextureStateSet(osg::Program* program,
                        osg::Texture::LINEAR_MIPMAP_LINEAR);
         tex->setFilter(osg::Texture::MAG_FILTER, osg::Texture::LINEAR);
         tex->setMaxAnisotropy(8.0f);
+        tex->setUseHardwareMipMapGeneration(true);
         return tex;
     };
 
@@ -431,19 +435,31 @@ public:
 };
 
 // glowna funkcja
-
 osg::Node* process_roads(osg::Matrixd& ltw, const std::string& file_path)
 {
     std::string roads_file_path = file_path + "/gis_osm_roads_free_1.shp";
 
-    // load the data
-    osg::ref_ptr<osg::Node> roads_model =
-        osgDB::readRefNodeFile(roads_file_path);
-    if (!roads_model)
+    std::error_code ec;
+    uintmax_t fileSize = std::filesystem::file_size(roads_file_path, ec);
+    if (ec)
     {
-        std::cout << "Cannot load file " << roads_file_path << std::endl;
+        std::cout << "Blad: Nie mozna odczytac rozmiaru pliku "
+                  << roads_file_path << std::endl;
         return nullptr;
     }
+
+    std::string cacheFileName = "roads_" + std::to_string(fileSize) + ".osgb";
+
+    if (std::filesystem::exists(cacheFileName))
+    {
+        std::cout << "Znaleziono cache [" << cacheFileName
+                  << "]. Pomijam generowanie..." << std::endl;
+        return osgDB::readNodeFile(cacheFileName);
+    }
+
+    osg::ref_ptr<osg::Node> roads_model =
+        osgDB::readRefNodeFile(roads_file_path);
+    if (!roads_model) return nullptr;
 
     ConvertFromGeoProjVisitor<true> cfgp;
     roads_model->accept(cfgp);
@@ -451,17 +467,12 @@ osg::Node* process_roads(osg::Matrixd& ltw, const std::string& file_path)
     WorldToLocalVisitor ltwv(ltw, true);
     roads_model->accept(ltwv);
 
-    // przygotowanie shaderów
     osg::Program* program = new osg::Program;
-    program->setName("RoadNormalMapping");
     program->addShader(new osg::Shader(osg::Shader::VERTEX, vertSource));
     program->addShader(new osg::Shader(osg::Shader::FRAGMENT, fragSource));
     program->addBindAttribLocation("a_tangent", 6);
 
-    // tekstury
     std::string images_path = "images";
-
-    std::cout << "Laduje tekstury..." << std::endl;
     osg::StateSet* ssHighway =
         createTextureStateSet(program, images_path + "/highway_d.dds",
                               images_path + "/highway_n.dds", -7);
@@ -470,22 +481,17 @@ osg::Node* process_roads(osg::Matrixd& ltw, const std::string& file_path)
     osg::StateSet* ssPath = createTextureStateSet(
         program, images_path + "/path_d.dds", images_path + "/path_n.dds", -9);
 
-    std::cout << "Generuje geometrie drog..." << std::endl;
+    std::cout << "Generuje geometrie drog (brak cache)..." << std::endl;
     RoadGeneratorVisitor generator(ssHighway, ssCity, ssPath);
     roads_model->accept(generator);
 
-    // optymalizacja sceny
     osgUtil::Optimizer optimizer;
-    optimizer.optimize(roads_model,
-                       osgUtil::Optimizer::FLATTEN_STATIC_TRANSFORMS
-                           | osgUtil::Optimizer::REMOVE_REDUNDANT_NODES
-                           | osgUtil::Optimizer::MERGE_GEOMETRY
-                           | osgUtil::Optimizer::SPATIALIZE_GROUPS
-                           | osgUtil::Optimizer::INDEX_MESH
-                           | osgUtil::Optimizer::VERTEX_PRETRANSFORM
-                           | osgUtil::Optimizer::VERTEX_POSTTRANSFORM);
+    optimizer.optimize(roads_model, osgUtil::Optimizer::ALL_OPTIMIZATIONS);
+
+    // 4. Zapisz wygenerowany model do pliku cache przed zwróceniem
+    std::cout << "Zapisuje cache: " << cacheFileName << std::endl;
+    osgDB::writeNodeFile(*roads_model, cacheFileName);
 
     std::cout << "Przetwarzanie zakonczone\n" << std::endl;
-
     return roads_model.release();
 }
