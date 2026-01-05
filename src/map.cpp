@@ -27,7 +27,7 @@
 
 #include "common.h"
 #include "HUD.h"
-#include "camera_manip.cpp"
+#include "camera_manip.h"
 using namespace osg;
 float g_targetAlpha = 0.0f;
 float g_currentAlpha = 0.0f;
