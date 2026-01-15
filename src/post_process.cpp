@@ -15,38 +15,9 @@
 using namespace osg;
 using namespace osgMap::postfx;
 
+static std::string s_shader_path = SHADER_PATH;
+
 // GOOD LUCK! // Thanks, I'll need it
-
-const char* vert_source = R"(
-#version 330
-
-layout (location = 0) in vec3 i_position;
-
-out vec2 tex_coord;
-
-void main() {
-    gl_Position = vec4(i_position, 1.0);
-    tex_coord = vec2(
-        (i_position.x + 1.0) / 2.0,
-        (i_position.y + 1.0) / 2.0
-    );
-}
-
-)";
-
-const char* frag_source = R"(
-#version 330
-
-uniform sampler2D color_texture;
-uniform sampler2D depth_texture;
-
-in vec2 tex_coord;
-
-void main() {
-    gl_FragColor = vec4(texture(depth_texture, tex_coord).r);
-}
-
-)";
 
 /**************************************************************************************************/
 
@@ -68,8 +39,8 @@ PostProcessor::PostProcessor(
     render_plane_geode->addDrawable(m_render_plane.get());
 
     osg::ref_ptr<osg::Program> program = new osg::Program;
-    program->addShader(new osg::Shader(osg::Shader::VERTEX, vert_source));
-    program->addShader(new osg::Shader(osg::Shader::FRAGMENT, frag_source));
+    program->addShader(osg::Shader::readShaderFile(osg::Shader::VERTEX, s_shader_path + "/passthrough.vert"));
+    program->addShader(osg::Shader::readShaderFile(osg::Shader::FRAGMENT, s_shader_path + "/fxaa.frag"));
 
     osg::StateSet* state_set = render_plane_geode->getOrCreateStateSet();
     state_set->setAttributeAndModes(program.get());
