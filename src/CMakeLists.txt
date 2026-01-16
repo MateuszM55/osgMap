@@ -26,5 +26,5 @@ link_directories(${OPENSCENEGRAPH_LIBRARY_DIRS})
 # Optionally, if you have assets, you could add a custom command to copy them
 # For this map, we'll just have a README in the assets folder.
 target_compile_definitions(${PROJECT_NAME}
-    PRIVATE SHADER_PATH="${CMAKE_SOURCE_DIR}/data/shaders"
+    PRIVATE SHADER_PATH="${CMAKE_SOURCE_DIR}/data/shaders/"
 )
