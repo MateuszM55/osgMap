@@ -278,10 +278,19 @@ int main(int argc, char** argv)
     // 2. Set scene BEFORE realize()
     viewer->setSceneData(finalRoot);
 
+    viewer->setUpViewOnSingleScreen(0);
+
     // 3. Realize the viewer (creates the window + context)
     viewer->realize();
 
     // 4. Now viewport exists → safe to read size
+    if (viewer->getCamera() == nullptr
+        || viewer->getCamera()->getViewport() == nullptr)
+    {
+        std::cout << "Viewer setup failed!" << std::endl;
+        return 0;
+    }
+
     int w = viewer->getCamera()->getViewport()->width();
     int h = viewer->getCamera()->getViewport()->height();
 
