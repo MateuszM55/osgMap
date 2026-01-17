@@ -129,7 +129,7 @@ vec3 fxaa() {
 
     float length_positive = length(distance_positive);
     float length_negative = length(distance_negative);
-    float offset = abs(length_positive - length_negative) 
+    float offset = abs((length_positive - length_negative) 
         / (length_positive + length_negative));
 
     #ifdef FXAA_DBG_EDGE_DISTANCE
