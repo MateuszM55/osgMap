@@ -3,9 +3,60 @@
 uniform sampler2D color_texture;
 uniform sampler2D depth_texture;
 
-in vec2 tex_coord;
-out vec4 fragColor;
+varying vec2 v_texCoord;
+
+// KONFIGURACJA
+
+// Maksymalny limit rozmycia (Wyzsza wartosc to bardziej rozmyte tlo)
+const float MAX_BLUR = 0.03; 
+
+// Sila rozmycia
+// Dostosuj to jesli tlo jest zbyt rozmyte lub za malo rozmyte (Wyzsza wartosc to bardziej rozmyte tlo)
+const float BLUR_RAMP = 30.0;
+
+// Bezpieczna strefa (zachowanie ostrosci pobliskiego terenu)
+// Wszystko bardzo blisko pozostaje ostre
+const float FOCUS_RANGE = 0.986;
 
 void main() {
-    fragColor = texture(color_texture, tex_coord);
+    vec4 sceneColor = texture2D(color_texture, v_texCoord);
+    
+    // Pobranie glebi
+    float depth = texture2D(depth_texture, v_texCoord).r;
+
+    // STALY FOKUS (Blisko znaczy ostro)
+    // Zamiast czytac srodkowy piksel blokujemy ostrosc na 0.0 (bliska plaszczyzna)
+    float focusDepth = 0.0; 
+
+    // Obliczenie wspolczynnika rozmycia
+    // Prosta logika im wieksza glebia tym wieksze rozmycie
+    float dist = abs(depth - focusDepth);
+
+    // Odjecie bezpiecznej strefy (zachowanie ostrosci pobliskiego terenu)
+    float factor = max(0.0, dist - FOCUS_RANGE);
+
+    // Ograniczenie i wzmocnienie
+    factor = clamp(factor, 0.0, MAX_BLUR);
+    float strength = factor * BLUR_RAMP;
+    
+    // Obliczenie kroku
+    vec2 blurStep = vec2(1.0/800.0) * strength; 
+
+    // Probkowanie Rozmycia
+    vec4 sum = vec4(0.0);
+    
+    sum += sceneColor * 4.0;
+    
+    sum += texture2D(color_texture, v_texCoord + vec2(-blurStep.x, -blurStep.y));
+    sum += texture2D(color_texture, v_texCoord + vec2( 0.0,        -blurStep.y));
+    sum += texture2D(color_texture, v_texCoord + vec2( blurStep.x, -blurStep.y));
+    
+    sum += texture2D(color_texture, v_texCoord + vec2(-blurStep.x,  0.0)); 
+    sum += texture2D(color_texture, v_texCoord + vec2( blurStep.x,  0.0));
+    
+    sum += texture2D(color_texture, v_texCoord + vec2(-blurStep.x,  blurStep.y));
+    sum += texture2D(color_texture, v_texCoord + vec2( 0.0,         blurStep.y));
+    sum += texture2D(color_texture, v_texCoord + vec2( blurStep.x,  blurStep.y));
+
+    gl_FragColor = sum / 12.0;
 }
