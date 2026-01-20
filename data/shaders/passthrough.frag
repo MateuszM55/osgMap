@@ -1,4 +1,4 @@
-#version 330
+#version 420 compatibility
 
 uniform sampler2D color_texture;
 uniform sampler2D depth_texture;

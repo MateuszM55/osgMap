@@ -1,13 +1,8 @@
-#version 330
-
-layout (location = 0) in vec3 i_position;
+#version 420 compatibility
 
 out vec2 tex_coord;
 
-void main() {
-    gl_Position = vec4(i_position, 1.0);
-    tex_coord = vec2(
-        (i_position.x + 1.0) / 2.0,
-        (i_position.y + 1.0) / 2.0
-    );
+void main(void) {
+    tex_coord = gl_MultiTexCoord0.xy;
+    gl_Position = gl_ModelViewProjectionMatrix * gl_Vertex;
 }

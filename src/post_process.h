@@ -17,113 +17,108 @@ namespace osgMap::postfx {
 /**************************************************************************************************/
 
 class Layer {
+    friend class PostProcessor;
+
 public:
-    Layer(osg::ref_ptr<osg::Texture2D> in_color_texture,
-          osg::ref_ptr<osg::Texture2D> out_color_texture,
-          osg::ref_ptr<osg::Texture2D> depth_texture,
-          osg::ref_ptr<osg::Group> parent, int render_order,
+    Layer(osg::ref_ptr<osg::Texture2D>& in_color_texture,
+          osg::ref_ptr<osg::Texture2D>& out_color_texture,
+          osg::ref_ptr<osg::Texture2D>& depth_texture,
           const std::string& vert_filename, const std::string& frag_filename);
     virtual ~Layer(void) = 0;
 
-    inline void setViewport(int x, int y, int width, int height)
-    {
-        m_camera->setViewport(x, y, width, height);
-    }
+    virtual void resize(int width, int height);
 
-private:
-    osg::ref_ptr<osg::Camera> m_camera;
-};
-
-/**************************************************************************************************/
-
-class DOF : public Layer {
-public:
-    DOF(osg::ref_ptr<osg::Texture2D> in_color_texture,
-        osg::ref_ptr<osg::Texture2D> out_color_texture,
-        osg::ref_ptr<osg::Texture2D> depth_texture,
-        osg::ref_ptr<osg::Group> parent, int render_order)
-        : Layer(in_color_texture, out_color_texture, depth_texture, parent,
-                render_order, "passthrough.vert", "dof.frag")
-    {}
-    ~DOF(void) override {}
-};
-
-/**************************************************************************************************/
-
-class Bloom : public Layer {
-public:
-    Bloom(osg::ref_ptr<osg::Texture2D> in_color_texture,
-          osg::ref_ptr<osg::Texture2D> out_color_texture,
-          osg::ref_ptr<osg::Texture2D> depth_texture,
-          osg::ref_ptr<osg::Group> parent, int render_order)
-        : Layer(in_color_texture, out_color_texture, depth_texture, parent,
-                render_order, "passthrough.vert", "bloom.frag")
-    {}
-    ~Bloom(void) override {}
-};
-
-/**************************************************************************************************/
-
-class FXAA : public Layer {
-public:
-    FXAA(osg::ref_ptr<osg::Texture2D> in_color_texture,
-         osg::ref_ptr<osg::Texture2D> out_color_texture,
-         osg::ref_ptr<osg::Texture2D> depth_texture,
-         osg::ref_ptr<osg::Group> parent, int render_order)
-        : Layer(in_color_texture, out_color_texture, depth_texture, parent,
-                render_order, "passthrough.vert", "fxaa.frag")
-    {}
-    ~FXAA(void) override {}
-};
-
-/**************************************************************************************************/
-
-class PostProcessor {
-public:
-    PostProcessor(osg::ref_ptr<osg::Group> parent);
-    ~PostProcessor(void);
-
-    template <typename T> void pushLayer(void);
-    template <typename T> T* getLayer(void);
-
-    void resize(int width, int height);
-    void attachInputCamera(osg::ref_ptr<osg::Camera> camera);
-
-private:
-    osg::ref_ptr<osg::Group> m_parent;
+protected:
     osg::ref_ptr<osg::Camera> m_camera;
     osg::ref_ptr<osg::Geode> m_render_plane;
-    osg::ref_ptr<osg::Texture2D> m_color_textures[2];
-    osg::ref_ptr<osg::Texture2D> m_frame_texture;
-    osg::ref_ptr<osg::Texture2D> m_depth_texture;
-
-    std::vector<Layer*> m_layers;
 };
 
 /**************************************************************************************************/
 
-template <typename T> void PostProcessor::pushLayer(void)
-{
-    static_assert(std::is_base_of<Layer, T>::value,
-                  "T must be derived from osgMap::postfx::Layer");
+class Passthrough final : public Layer {
+public:
+    Passthrough(osg::ref_ptr<osg::Texture2D>& in_color_texture,
+                osg::ref_ptr<osg::Texture2D>& out_color_texture,
+                osg::ref_ptr<osg::Texture2D>& depth_texture)
+        : Layer(in_color_texture, out_color_texture, depth_texture,
+                "passthrough.vert", "passthrough.frag")
+    {}
+    ~Passthrough(void) override {}
+};
 
-    int in_idx = m_layers.size() & 0x1;
-    int out_idx = (m_layers.size() + 1) & 0x1;
+/**************************************************************************************************/
 
-    m_layers.push_back(
-        new T(!m_layers.size() ? m_frame_texture : m_color_textures[in_idx],
-              m_color_textures[out_idx], m_depth_texture, m_parent,
-              m_layers.size() + 1));
-    m_render_plane->getOrCreateStateSet()->setTextureAttributeAndModes(
-        0, m_color_textures[out_idx].get());
-}
+class UV final : public Layer {
+public:
+    UV(osg::ref_ptr<osg::Texture2D>& in_color_texture,
+       osg::ref_ptr<osg::Texture2D>& out_color_texture,
+       osg::ref_ptr<osg::Texture2D>& depth_texture)
+        : Layer(in_color_texture, out_color_texture, depth_texture,
+                "passthrough.vert", "uv.frag")
+    {}
+    ~UV(void) override {}
+};
+
+/**************************************************************************************************/
+
+class FXAA final : public Layer {
+public:
+    FXAA(osg::ref_ptr<osg::Texture2D>& in_color_texture,
+         osg::ref_ptr<osg::Texture2D>& out_color_texture,
+         osg::ref_ptr<osg::Texture2D>& depth_texture)
+        : Layer(in_color_texture, out_color_texture, depth_texture,
+                "passthrough.vert", "fxaa.frag")
+    {
+        m_render_plane->getOrCreateStateSet()->addUniform(
+            new osg::Uniform("u_resolution", osg::Vec2(0.0f, 0.0f)));
+    }
+    ~FXAA(void) override {}
+
+    void resize(int width, int height) override
+    {
+        Layer::resize(width, height);
+        m_render_plane->getOrCreateStateSet()
+            ->getUniform("u_resolution")
+            ->set(osg::Vec2((float)width, (float)height));
+    }
+};
+
+/**************************************************************************************************/
+
+class PostProcessor final : public osg::Group {
+public:
+    PostProcessor(osg::Group* scene);
+    ~PostProcessor(void) = default;
+
+    void resize(int width, int height);
+    osg::Projection* getRenderPlaneProjection(void);
+
+    template <typename T> T* getLayer(void);
+    template <typename T> void pushLayer(void);
+
+private:
+    enum Buffer
+    {
+        FRAME_BUFFER = 0,
+        DEPTH_BUFFER = 1,
+        COLOR_BUFFER_A = 2,
+        COLOR_BUFFER_B = 3
+    };
+
+    std::vector<Layer*> m_layers;
+
+    osg::ref_ptr<osg::Camera> m_camera;
+    osg::ref_ptr<osg::Geode> m_render_plane;
+    osg::ref_ptr<osg::Texture2D> m_buffers[4];
+};
 
 /**************************************************************************************************/
 
 template <typename T> T* PostProcessor::getLayer(void)
 {
-    static_assert(std::is_base_of<Layer, T>::value,
-                  "T must be derived from osgMap::postfx::Layer");
+    static_assert(
+        std::is_base_of<Layer, T>::value,
+        "Template argument must be derived from osgMap::postfx::Layer class");
 
     for (auto* layer : m_layers)
     {
@@ -134,6 +129,32 @@ template <typename T> T* PostProcessor::getLayer(void)
     }
 
     return nullptr;
+}
+
+/**************************************************************************************************/
+
+template <typename T> void PostProcessor::pushLayer(void)
+{
+    static_assert(
+        std::is_base_of<Layer, T>::value,
+        "Template argument must be derived from osgMap::postfx::Layer class");
+
+    int buffer_in = m_layers.size() & 0x1 ? COLOR_BUFFER_B : COLOR_BUFFER_A;
+    int buffer_out =
+        buffer_in == COLOR_BUFFER_A ? COLOR_BUFFER_B : COLOR_BUFFER_A;
+    buffer_in = !m_layers.size() ? Buffer::FRAME_BUFFER : buffer_in;
+
+    std::cout << "in: " << buffer_in << " out: " << buffer_out << "\n";
+
+    Layer* new_layer = new T(m_buffers[buffer_in], m_buffers[buffer_out],
+                             m_buffers[Buffer::DEPTH_BUFFER]);
+
+    new_layer->m_camera->setRenderOrder(osg::Camera::PRE_RENDER,
+                                        m_layers.size() + 1);
+    this->addChild(new_layer->m_camera);
+    m_layers.push_back(new_layer);
+    m_render_plane->getOrCreateStateSet()->setTextureAttributeAndModes(
+        0, m_buffers[buffer_out].get());
 }
 
 /**************************************************************************************************/
