@@ -1,29 +1,9 @@
-#include <osgDB/ReadFile>
-#include <osgUtil/Optimizer>
-#include <osg/CoordinateSystemNode>
-
-#include <osg/Switch>
-#include <osg/Types>
-#include <osgText/Text>
-#include <osg/MatrixTransform>
-#include <osg/ShapeDrawable>
-#include <osg/ImageStream>
-
-#include <osgViewer/Viewer>
-#include <osgViewer/ViewerEventHandlers>
-
-#include <osgGA/TrackballManipulator>
-#include <osgGA/FlightManipulator>
-#include <osgGA/DriveManipulator>
-#include <osgGA/KeySwitchMatrixManipulator>
-#include <osgGA/StateSetManipulator>
-#include <osgGA/AnimationPathManipulator>
-#include <osgGA/TerrainManipulator>
-#include <osgGA/SphericalManipulator>
-
-#include <iostream>
-
 #include "post_process.h"
+
+#include <string>
+
+#include <osg/Geometry>
+#include <osg/MatrixTransform>
 
 using namespace osg;
 using namespace osgMap::postfx;
