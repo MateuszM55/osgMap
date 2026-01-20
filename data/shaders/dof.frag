@@ -3,7 +3,8 @@
 uniform sampler2D color_texture;
 uniform sampler2D depth_texture;
 
-varying vec2 v_texCoord;
+in vec2 tex_coord;
+out vec4 fragColor;
 
 // KONFIGURACJA
 
@@ -19,10 +20,10 @@ const float BLUR_RAMP = 30.0;
 const float FOCUS_RANGE = 0.986;
 
 void main() {
-    vec4 sceneColor = texture2D(color_texture, v_texCoord);
+    vec4 sceneColor = texture2D(color_texture, tex_coord);
     
     // Pobranie glebi
-    float depth = texture2D(depth_texture, v_texCoord).r;
+    float depth = texture2D(depth_texture, tex_coord).r;
 
     // STALY FOKUS (Blisko znaczy ostro)
     // Zamiast czytac srodkowy piksel blokujemy ostrosc na 0.0 (bliska plaszczyzna)
@@ -47,16 +48,16 @@ void main() {
     
     sum += sceneColor * 4.0;
     
-    sum += texture2D(color_texture, v_texCoord + vec2(-blurStep.x, -blurStep.y));
-    sum += texture2D(color_texture, v_texCoord + vec2( 0.0,        -blurStep.y));
-    sum += texture2D(color_texture, v_texCoord + vec2( blurStep.x, -blurStep.y));
+    sum += texture2D(color_texture, tex_coord + vec2(-blurStep.x, -blurStep.y));
+    sum += texture2D(color_texture, tex_coord + vec2( 0.0,        -blurStep.y));
+    sum += texture2D(color_texture, tex_coord + vec2( blurStep.x, -blurStep.y));
     
-    sum += texture2D(color_texture, v_texCoord + vec2(-blurStep.x,  0.0)); 
-    sum += texture2D(color_texture, v_texCoord + vec2( blurStep.x,  0.0));
+    sum += texture2D(color_texture, tex_coord + vec2(-blurStep.x,  0.0)); 
+    sum += texture2D(color_texture, tex_coord + vec2( blurStep.x,  0.0));
     
-    sum += texture2D(color_texture, v_texCoord + vec2(-blurStep.x,  blurStep.y));
-    sum += texture2D(color_texture, v_texCoord + vec2( 0.0,         blurStep.y));
-    sum += texture2D(color_texture, v_texCoord + vec2( blurStep.x,  blurStep.y));
+    sum += texture2D(color_texture, tex_coord + vec2(-blurStep.x,  blurStep.y));
+    sum += texture2D(color_texture, tex_coord + vec2( 0.0,         blurStep.y));
+    sum += texture2D(color_texture, tex_coord + vec2( blurStep.x,  blurStep.y));
 
-    gl_FragColor = sum / 12.0;
+    fragColor = sum / 12.0;
 }
