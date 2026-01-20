@@ -6,6 +6,7 @@
 #include <osg/Camera>
 #include <osg/Texture2D>
 #include <osg/Projection>
+#include <osgGA/GUIEventHandler>
 
 namespace osgMap::postfx {
 
@@ -18,7 +19,7 @@ public:
     Layer(osg::ref_ptr<osg::Texture2D>& in_color_texture,
           osg::ref_ptr<osg::Texture2D>& out_color_texture,
           osg::ref_ptr<osg::Texture2D>& depth_texture,
-          const std::string& vert_filename, const std::string& frag_filename);
+          const std::string& frag_filename);
     virtual ~Layer(void) = 0;
 
     virtual void resize(int width, int height);
@@ -36,7 +37,7 @@ public:
                 osg::ref_ptr<osg::Texture2D>& out_color_texture,
                 osg::ref_ptr<osg::Texture2D>& depth_texture)
         : Layer(in_color_texture, out_color_texture, depth_texture,
-                "passthrough.vert", "passthrough.frag")
+                "passthrough.frag")
     {}
     ~Passthrough(void) override {}
 };
@@ -48,8 +49,7 @@ public:
     UV(osg::ref_ptr<osg::Texture2D>& in_color_texture,
        osg::ref_ptr<osg::Texture2D>& out_color_texture,
        osg::ref_ptr<osg::Texture2D>& depth_texture)
-        : Layer(in_color_texture, out_color_texture, depth_texture,
-                "passthrough.vert", "uv.frag")
+        : Layer(in_color_texture, out_color_texture, depth_texture, "uv.frag")
     {}
     ~UV(void) override {}
 };
@@ -61,8 +61,7 @@ public:
     FXAA(osg::ref_ptr<osg::Texture2D>& in_color_texture,
          osg::ref_ptr<osg::Texture2D>& out_color_texture,
          osg::ref_ptr<osg::Texture2D>& depth_texture)
-        : Layer(in_color_texture, out_color_texture, depth_texture,
-                "passthrough.vert", "fxaa.frag")
+        : Layer(in_color_texture, out_color_texture, depth_texture, "fxaa.frag")
     {
         m_render_plane->getOrCreateStateSet()->addUniform(
             new osg::Uniform("u_resolution", osg::Vec2(0.0f, 0.0f)));
@@ -85,10 +84,22 @@ public:
     DOF(osg::ref_ptr<osg::Texture2D>& in_color_texture,
         osg::ref_ptr<osg::Texture2D>& out_color_texture,
         osg::ref_ptr<osg::Texture2D>& depth_texture)
-        : Layer(in_color_texture, out_color_texture, depth_texture,
-                "passthrough.vert", "dof.frag")
+        : Layer(in_color_texture, out_color_texture, depth_texture, "dof.frag")
     {}
     ~DOF(void) override {}
+};
+
+/**************************************************************************************************/
+
+class Bloom final : public Layer {
+public:
+    Bloom(osg::ref_ptr<osg::Texture2D>& in_color_texture,
+          osg::ref_ptr<osg::Texture2D>& out_color_texture,
+          osg::ref_ptr<osg::Texture2D>& depth_texture)
+        : Layer(in_color_texture, out_color_texture, depth_texture,
+                "bloom.frag")
+    {}
+    ~Bloom(void) override {}
 };
 
 /**************************************************************************************************/
@@ -99,6 +110,7 @@ public:
     ~PostProcessor(void) = default;
 
     void resize(int width, int height);
+    osgGA::GUIEventHandler* getResizeHandler(void);
     osg::Projection* getRenderPlaneProjection(void);
 
     template <typename T> T* getLayer(void);

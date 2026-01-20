@@ -1,6 +1,7 @@
 #include "post_process.h"
 
 #include <string>
+#include <functional>
 
 #include <osg/Geometry>
 #include <osg/MatrixTransform>
@@ -16,6 +17,16 @@ static std::string s_shader_path = SHADER_PATH;
 /* MISC */
 /**************************************************************************************************/
 
+class ResizeHandler : public osgGA::GUIEventHandler {
+public:
+    ResizeHandler(const std::function<bool(int, int)>& handler);
+    bool ResizeHandler::handle(const osgGA::GUIEventAdapter& ea,
+                               osgGA::GUIActionAdapter& aa);
+
+private:
+    std::function<bool(int, int)> m_handler;
+};
+
 osg::Program* createProgram(const std::string& vert_filename,
                             const std::string& frag_filename);
 
@@ -30,11 +41,11 @@ osg::Geode* createRenderPlane(osg::ref_ptr<osg::Program>& program,
 Layer::Layer(osg::ref_ptr<osg::Texture2D>& in_color_texture,
              osg::ref_ptr<osg::Texture2D>& out_color_texture,
              osg::ref_ptr<osg::Texture2D>& depth_texture,
-             const std::string& vert_filename, const std::string& frag_filename)
+             const std::string& frag_filename)
     : m_camera(new osg::Camera)
 {
     osg::ref_ptr<osg::Program> program =
-        createProgram(vert_filename, frag_filename);
+        createProgram("passthrough.vert", frag_filename);
     m_render_plane =
         createRenderPlane(program, in_color_texture, depth_texture);
 
@@ -113,6 +124,16 @@ void PostProcessor::resize(int width, int height)
     {
         layer->resize(width, height);
     }
+}
+
+/**************************************************************************************************/
+
+osgGA::GUIEventHandler* PostProcessor::getResizeHandler(void)
+{
+    return new ResizeHandler([this](int width, int height) -> bool {
+        this->resize(width, height);
+        return false;
+    });
 }
 
 /**************************************************************************************************/
@@ -197,6 +218,21 @@ osg::Geode* createRenderPlane(osg::ref_ptr<osg::Program>& program,
     state_set->setTextureAttributeAndModes(1, depth_texture.get());
 
     return plane;
+}
+/**************************************************************************************************/
+
+ResizeHandler::ResizeHandler(const std::function<bool(int, int)>& handler)
+    : m_handler(handler)
+{}
+
+/**************************************************************************************************/
+
+bool ResizeHandler::handle(const osgGA::GUIEventAdapter& ea,
+                           osgGA::GUIActionAdapter& aa)
+{
+    return ea.getEventType() & osgGA::GUIEventAdapter::RESIZE
+        ? m_handler(ea.getWindowWidth(), ea.getWindowHeight())
+        : false;
 }
 
 /**************************************************************************************************/

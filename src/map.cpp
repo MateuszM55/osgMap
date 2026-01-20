@@ -28,13 +28,14 @@
 #include "common.h"
 #include "HUD.h"
 #include "camera_manip.h"
+#include "post_process.h"
+
 using namespace osg;
 float g_targetAlpha = 0.0f;
 float g_currentAlpha = 0.0f;
 
 osg::ref_ptr<osgViewer::Viewer> viewer;
 osg::ref_ptr<osg::EllipsoidModel> ellipsoid;
-
 
 int main(int argc, char** argv)
 {
@@ -164,7 +165,8 @@ int main(int argc, char** argv)
         std::string pathfile;
         double animationSpeed = 1.0;
         while (arguments.read("--speed", animationSpeed))
-        {}
+        {
+        }
         char keyForAnimationPath = '8';
         while (arguments.read("-p", pathfile))
         {
@@ -214,6 +216,16 @@ int main(int argc, char** argv)
     // add the screen capture handler
     viewer->addEventHandler(new osgViewer::ScreenCaptureHandler);
 
+    // any option left unread are converted into errors to write out later.
+    arguments.reportRemainingOptionsAsUnrecognized();
+
+    // report any errors if they have occurred when parsing the program
+    // arguments.
+    if (arguments.errors())
+    {
+        arguments.writeErrorMessages(std::cout);
+        return 1;
+    }
 
     osg::ElapsedTime elapsedTime;
     if (printStats)
@@ -229,25 +241,27 @@ int main(int argc, char** argv)
     //////////////////////////////////// CREATE MAP SCENE ///////////////
     /////////////////////////////////////////////////////////////////////
 
-    osg::MatrixTransform* root = new osg::MatrixTransform;
     osg::Matrixd ltw;
     osg::BoundingBox wbb;
     osg::ref_ptr<osg::Node> land_model = process_landuse(ltw, wbb, file_path);
-    root->setMatrix(ltw);
-    root->addChild(land_model);
-
     osg::ref_ptr<osg::Node> water_model = process_water(ltw, file_path);
-    root->addChild(water_model);
-
     osg::ref_ptr<osg::Node> roads_model = process_roads(ltw, file_path);
-    root->addChild(roads_model);
-
     osg::ref_ptr<osg::Node> buildings_model = process_buildings(ltw, file_path);
-    root->addChild(buildings_model);
-
     osg::ref_ptr<osg::Node> labels_model = process_labels(ltw, file_path);
-    root->addChild(labels_model);
 
+    osg::ref_ptr<osg::Geode> scene = new osg::Geode;
+    scene->addChild(land_model);
+    scene->addChild(water_model);
+    scene->addChild(roads_model);
+    scene->addChild(buildings_model);
+    scene->addChild(labels_model);
+
+    osg::ref_ptr<osgMap::postfx::PostProcessor> ppu =
+        new osgMap::postfx::PostProcessor(scene);
+    ppu->pushLayer<osgMap::postfx::FXAA>();
+    ppu->pushLayer<osgMap::postfx::DOF>();
+    ppu->pushLayer<osgMap::postfx::Bloom>();
+    viewer->addEventHandler(ppu->getResizeHandler());
 
     osg::Vec3d wtrans = wbb.center();
     wtrans.normalize();
@@ -260,30 +274,21 @@ int main(int argc, char** argv)
     viewer->getLight()->setDiffuse(osg::Vec4(0.8f, 0.8f, 0.8f, 1.0f));
     viewer->getLight()->setSpecular(osg::Vec4(0.5f, 0.5f, 0.5f, 1.0f));
 
+    osg::MatrixTransform* root = new osg::MatrixTransform;
+    root->setMatrix(ltw);
+    root->addChild(ppu);
+    root->addChild(ppu->getRenderPlaneProjection());
 
-    // any option left unread are converted into errors to write out later.
-    arguments.reportRemainingOptionsAsUnrecognized();
-
-    // report any errors if they have occurred when parsing the program
-    // arguments.
-    if (arguments.errors())
-    {
-        arguments.writeErrorMessages(std::cout);
-        return 1;
-    }
     // 1. Build your main scene
-    osg::Group* finalRoot = new osg::Group;
-    finalRoot->addChild(root); // your map scene
 
     // 2. Set scene BEFORE realize()
-    viewer->setSceneData(finalRoot);
-
+    viewer->setSceneData(root);
     viewer->setUpViewOnSingleScreen(0);
 
     // 3. Realize the viewer (creates the window + context)
     viewer->realize();
 
-    // 4. Now viewport exists → safe to read size
+    //// 4. Now viewport exists → safe to read size
     if (viewer->getCamera() == nullptr
         || viewer->getCamera()->getViewport() == nullptr)
     {
@@ -294,28 +299,36 @@ int main(int argc, char** argv)
     int w = viewer->getCamera()->getViewport()->width();
     int h = viewer->getCamera()->getViewport()->height();
 
-    // 5. Create HUD
+    /**
+     * less of a problem in windowed mode,
+     * but when running in fullscreen mode,
+     * don't forget to call resize on viewer
+     * mount!
+     */
+    ppu->resize(w, h);
+
+    //// 5. Create HUD
     osg::Camera* hud = createHUD("images/logo.png", 0.3f, w, h);
 
-    // Find the geode in the HUD (you might need to store it during creation)
+    //// Find the geode in the HUD (you might need to store it during creation)
     osg::Geode* hudGeode = dynamic_cast<osg::Geode*>(hud->getChild(0));
 
-    // Add resize handler
+    //// Add resize handler
     viewer->addEventHandler(
         new HUDResizeHandler(hud, hudGeode, "images/logo.png", 0.3f));
 
-    // 6. Add HUD AFTER realize() (totally allowed)
-    finalRoot->addChild(hud);
+    //// 6. Add HUD AFTER realize() (totally allowed)
+    root->addChild(hud);
 
-    // 7. Main loop
+    //// 7. Main loop
     bool wasMoving = false;
     const float FADE_SPEED = 2.0f;
 
-    // Initialize to visible
+    //// Initialize to visible
     g_currentAlpha = 1.0f;
     g_targetAlpha = 1.0f;
 
-    // Set initial alpha values
+    //// Set initial alpha values
     if (g_hudAlpha.valid())
     {
         g_hudAlpha->set(g_currentAlpha);
@@ -356,7 +369,7 @@ int main(int argc, char** argv)
                         std::ostringstream ss;
                         osg::Vec3d hit, normal;
                         std::string landInfo =
-                            getLandInfoAtIntersection(finalRoot, hit);
+                            getLandInfoAtIntersection(root, hit);
                         ss << "Land Data:\n" << landInfo;
                         hudSetText(ss.str());
                     }
