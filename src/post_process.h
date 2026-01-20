@@ -85,6 +85,19 @@ public:
 
 /**************************************************************************************************/
 
+class DOF final : public Layer {
+public:
+    DOF(osg::ref_ptr<osg::Texture2D>& in_color_texture,
+        osg::ref_ptr<osg::Texture2D>& out_color_texture,
+        osg::ref_ptr<osg::Texture2D>& depth_texture)
+        : Layer(in_color_texture, out_color_texture, depth_texture,
+                "passthrough.vert", "dof.frag")
+    {}
+    ~DOF(void) override {}
+};
+
+/**************************************************************************************************/
+
 class PostProcessor final : public osg::Group {
 public:
     PostProcessor(osg::Group* scene);
@@ -143,8 +156,6 @@ template <typename T> void PostProcessor::pushLayer(void)
     int buffer_out =
         buffer_in == COLOR_BUFFER_A ? COLOR_BUFFER_B : COLOR_BUFFER_A;
     buffer_in = !m_layers.size() ? Buffer::FRAME_BUFFER : buffer_in;
-
-    std::cout << "in: " << buffer_in << " out: " << buffer_out << "\n";
 
     Layer* new_layer = new T(m_buffers[buffer_in], m_buffers[buffer_out],
                              m_buffers[Buffer::DEPTH_BUFFER]);
