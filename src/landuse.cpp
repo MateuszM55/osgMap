@@ -1,12 +1,5 @@
-/* Poruszanie si� po mapie,
-    aby m�c si� pochyli� :
-Naci�nij klawisz 5 na klawiaturze, aby zmieni� tryb poruszania si�
-Naci�ni�cie scrolla s�u�y do poruszania si� po mapie
-Naci�ni�cie LPM s�u�y do nachylania si� na mapie podmr�nymi k�tami
-Naci�ni�cie PPM s�u�y do oddalania i przybli�ania.
-Aby uzyska� wi�cej informacji o nawigowaniu po mapie naci�nij h.
-    */
 #include <osgDB/ReadFile>
+#include <osgDB/WriteFile>
 #include <osgUtil/Optimizer>
 #include <osg/CoordinateSystemNode>
 #include <osg/Switch>
@@ -25,10 +18,13 @@ Aby uzyska� wi�cej informacji o nawigowaniu po mapie naci�nij h.
 #include <osg/Uniform>
 #include <osg/Light>
 #include <osg/LightSource>
+#include <osg/ValueObject>
 #include <iostream>
 #include <map>
 #include <vector>
 #include <string>
+#include <filesystem>
+
 #include "common.h"
 
 using namespace osg;
@@ -59,7 +55,6 @@ void parse_meta_data(osg::Node* model, Mapping& umap)
         }
     }
 }
-
 
 void apply_texture(osg::StateSet* ss, const std::string& path)
 {
@@ -165,9 +160,60 @@ void setup_parallax_shader(osg::StateSet* ss, const std::string& data_path)
 osg::Node* process_landuse(osg::Matrixd& ltw, osg::BoundingBox& wbb,
                            const std::string& file_path)
 {
-    std::cout << "--- Start Landuse (Urbanizacja) ---" << std::endl;
-    osg::ref_ptr<osg::Node> land_model =
-        osgDB::readRefNodeFile(file_path + "/gis_osm_landuse_a_free_1.shp");
+    std::string shp_file_path = file_path + "/gis_osm_landuse_a_free_1.shp";
+
+    std::error_code ec;
+    uintmax_t fileSize = std::filesystem::file_size(shp_file_path, ec);
+    if (ec)
+    {
+        std::cout << "Blad: Nie mozna odczytac rozmiaru pliku " << shp_file_path
+                  << std::endl;
+        return nullptr;
+    }
+
+    std::string cacheFileName = "landuse_" + std::to_string(fileSize) + ".osgb";
+
+    if (std::filesystem::exists(cacheFileName))
+    {
+        std::cout << "Znaleziono cache Landuse [" << cacheFileName
+                  << "]. Wczytywanie..." << std::endl;
+
+        osg::ref_ptr<osg::Node> cachedNode = osgDB::readNodeFile(cacheFileName);
+
+        if (cachedNode.valid())
+        {
+
+            if (cachedNode->getUserValue("ltw_matrix", ltw))
+            {
+            }
+            else
+            {
+                std::cout << "Ostrzezenie: Cache nie zawiera macierzy LTW!"
+                          << std::endl;
+            }
+
+            osg::Vec3f minBB, maxBB;
+            if (cachedNode->getUserValue("wbb_min", minBB)
+                && cachedNode->getUserValue("wbb_max", maxBB))
+            {
+                wbb._min = minBB;
+                wbb._max = maxBB;
+            }
+            else
+            {
+                std::cout << "Ostrzezenie: Cache nie zawiera WBB!" << std::endl;
+            }
+
+            return cachedNode.release();
+        }
+        std::cout << "Blad wczytywania cache, powrot do generowania..."
+                  << std::endl;
+    }
+
+    std::cout << "--- Start Landuse (Urbanizacja - Generowanie) ---"
+              << std::endl;
+
+    osg::ref_ptr<osg::Node> land_model = osgDB::readRefNodeFile(shp_file_path);
     if (!land_model) return nullptr;
 
     osg::ref_ptr<osg::Group> land_group = new osg::Group;
@@ -322,6 +368,16 @@ osg::Node* process_landuse(osg::Matrixd& ltw, osg::BoundingBox& wbb,
         new osg::Depth(osg::Depth::LESS, 0, 1, false));
     land_model->getOrCreateStateSet()->setRenderBinDetails(-10, "RenderBin");
     land_model->getOrCreateStateSet()->setNestRenderBins(false);
+
+    osgUtil::Optimizer optimizer;
+    optimizer.optimize(land_group, osgUtil::Optimizer::ALL_OPTIMIZATIONS);
+
+    land_group->setUserValue("ltw_matrix", ltw);
+    land_group->setUserValue("wbb_min", wbb._min);
+    land_group->setUserValue("wbb_max", wbb._max);
+
+    std::cout << "Zapisuje cache Landuse: " << cacheFileName << std::endl;
+    osgDB::writeNodeFile(*land_group, cacheFileName);
 
     std::cout << "--- Koniec Landuse ---" << std::endl;
     return land_group.release();
