@@ -39,3 +39,16 @@ main
 *.vsproj
 *.user
 *~
+
+# GIS binary data (unpack locally from external source)
+*.shp
+*.shx
+*.dbf
+*.prj
+*.cpg
+
+# Local data directories
+map_data/
+
+# OSG cache files
+*.osgb

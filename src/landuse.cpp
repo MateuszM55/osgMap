@@ -133,7 +133,7 @@ void setup_parallax_shader(osg::StateSet* ss, const std::string& data_path)
     osg::ref_ptr<osg::Shader> frag = osgDB::readRefShaderFile(
         osg::Shader::FRAGMENT, data_path + "/parallax.frag");
     osg::ref_ptr<osg::Image> h_img =
-        osgDB::readRefImageFile(data_path + "/textures/cemetery_height.jpg");
+        osgDB::readRefImageFile(data_path + "/images/cemetery_height.dds");
 
     if (vert.valid() && frag.valid() && h_img.valid())
     {
@@ -260,103 +260,103 @@ osg::Node* process_landuse(osg::Matrixd& ltw, osg::BoundingBox& wbb,
         // === WARSTWA 0-3: TERENY MIEJSKIE (na spodzie) ===
         if (name.find("residential") != std::string::npos)
         {
-            apply_texture(ss, file_path + "/textures/concrete.jpg");
+            apply_texture(ss, file_path + "/images/concrete.dds");
             setup_standard_shader(ss, file_path);
         }
         else if (name.find("industrial") != std::string::npos)
         {
-            apply_texture(ss, file_path + "/textures/concrete.jpg");
+            apply_texture(ss, file_path + "/images/concrete.dds");
             setup_standard_shader(ss, file_path);
         }
         else if (name.find("commercial") != std::string::npos)
         {
-            apply_texture(ss, file_path + "/textures/concrete.jpg");
+            apply_texture(ss, file_path + "/images/concrete.dds");
             setup_standard_shader(ss, file_path);
         }
         else if (name.find("retail") != std::string::npos)
         {
-            apply_texture(ss, file_path + "/textures/concrete.jpg");
+            apply_texture(ss, file_path + "/images/concrete.dds");
             setup_standard_shader(ss, file_path);
         }
         // === WARSTWA 4-6: ROLNICTWO, WOJSKO, KAMIENIOŁOMY ===
         else if (name.find("farmland") != std::string::npos)
         {
-            apply_texture(ss, file_path + "/textures/farmland.jpg");
+            apply_texture(ss, file_path + "/images/farmland.dds");
             setup_standard_shader(ss, file_path);
         }
         else if (name.find("farmyard") != std::string::npos)
         {
-            apply_texture(ss, file_path + "/textures/farmland.jpg");
+            apply_texture(ss, file_path + "/images/farmland.dds");
             setup_standard_shader(ss, file_path);
         }
         else if (name.find("quarry") != std::string::npos)
         {
-            apply_texture(ss, file_path + "/textures/rock.jpg");
+            apply_texture(ss, file_path + "/images/rock.dds");
             setup_standard_shader(ss, file_path);
         }
         else if (name.find("military") != std::string::npos)
         {
-            apply_texture(ss, file_path + "/textures/military.jpg");
+            apply_texture(ss, file_path + "/images/military.dds");
             setup_standard_shader(ss, file_path);
         }
         // === WARSTWA 8-10: TRAWA, ŁĄKI, ZAROŚLA ===
         else if (name.find("grass") != std::string::npos)
         {
-            apply_texture(ss, file_path + "/textures/grass.jpg");
+            apply_texture(ss, file_path + "/images/grass.dds");
             setup_wind_shader(ss, file_path);
         }
         else if (name.find("meadow") != std::string::npos)
         {
-            apply_texture(ss, file_path + "/textures/grass.jpg");
+            apply_texture(ss, file_path + "/images/grass.dds");
             setup_wind_shader(ss, file_path);
         }
         else if (name.find("scrub") != std::string::npos)
         {
-            apply_texture(ss, file_path + "/textures/scrub.jpg");
+            apply_texture(ss, file_path + "/images/scrub.dds");
             setup_wind_shader(ss, file_path);
         }
         else if (name.find("heath") != std::string::npos)
         {
-            apply_texture(ss, file_path + "/textures/scrub.jpg");
+            apply_texture(ss, file_path + "/images/scrub.dds");
             setup_wind_shader(ss, file_path);
         }
         // === WARSTWA 12: LASY ===
         else if (name.find("forest") != std::string::npos)
         {
-            apply_texture(ss, file_path + "/textures/forest.jpg");
+            apply_texture(ss, file_path + "/images/forest.dds");
             setup_wind_shader(ss, file_path);
         }
         // === WARSTWA 13-15: SADY, DZIAŁKI, REZERWATY ===
         else if (name.find("orchard") != std::string::npos)
         {
-            apply_texture(ss, file_path + "/textures/orchard.jpg");
+            apply_texture(ss, file_path + "/images/orchard.dds");
             setup_wind_shader(ss, file_path);
         }
         else if (name.find("nature_reserve") != std::string::npos)
         {
-            apply_texture(ss, file_path + "/textures/orchard.jpg");
+            apply_texture(ss, file_path + "/images/orchard.dds");
             setup_wind_shader(ss, file_path);
         }
         else if (name.find("allotments") != std::string::npos)
         {
-            apply_texture(ss, file_path + "/textures/allotments.jpg");
+            apply_texture(ss, file_path + "/images/allotments.dds");
             setup_wind_shader(ss, file_path);
         }
         // === WARSTWA 16-17: PARKI, TERENY REKREACYJNE ===
         else if (name.find("park") != std::string::npos)
         {
-            apply_texture(ss, file_path + "/textures/grass.jpg");
+            apply_texture(ss, file_path + "/images/grass.dds");
             setup_wind_shader(ss, file_path);
         }
         else if (name.find("recreation_ground") != std::string::npos)
         {
-            apply_texture(ss, file_path + "/textures/sport_green.jpg");
+            apply_texture(ss, file_path + "/images/sport_green.dds");
             setup_wind_shader(ss, file_path);
         }
         // === WARSTWA 18: CMENTARZ (najwyżej - parallax) ===
         else if (name.find("cemetery") != std::string::npos)
         {
-            apply_texture(ss, file_path + "/textures/cemetery.jpg");
+            apply_texture(ss, file_path + "/images/cemetery.dds");
             setup_parallax_shader(ss, file_path);
         }
         for (size_t i = 0; i < nodes.size(); ++i)
