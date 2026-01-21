@@ -20,8 +20,7 @@ static std::string s_shader_path = SHADER_PATH;
 class ResizeHandler : public osgGA::GUIEventHandler {
 public:
     ResizeHandler(const std::function<bool(int, int)>& handler);
-    bool ResizeHandler::handle(const osgGA::GUIEventAdapter& ea,
-                               osgGA::GUIActionAdapter& aa);
+    bool handle(const osgGA::GUIEventAdapter& ea, osgGA::GUIActionAdapter& aa);
 
 private:
     std::function<bool(int, int)> m_handler;
