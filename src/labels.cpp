@@ -1,5 +1,6 @@
 #include <osgDB/ReadFile>
 #include <osgUtil/Optimizer>
+#include <osgUtil/CullVisitor>
 #include <osg/CoordinateSystemNode>
 #include <osg/Switch>
 #include <osg/Types>
@@ -174,43 +175,144 @@ public:
     }
 };
 
-std::string determineIconTexture(const std::string& type,
-                                 const std::string& subtype)
+class SortAndCullLabelsCallback : public osg::NodeCallback {
+    struct LabelItem
+    {
+        osg::Billboard* node;
+        osg::Vec3 screenPos;
+        double distToCam;
+    };
+
+    double _minDistSq;
+
+public:
+    SortAndCullLabelsCallback(double pixelDist = 45.0)
+        : _minDistSq(pixelDist * pixelDist)
+    {}
+
+    virtual void operator()(osg::Node* node, osg::NodeVisitor* nv)
+    {
+        osgUtil::CullVisitor* cv = dynamic_cast<osgUtil::CullVisitor*>(nv);
+        if (!cv)
+        {
+            traverse(node, nv);
+            return;
+        }
+
+        osg::Group* group = node->asGroup();
+        if (!group)
+        {
+            traverse(node, nv);
+            return;
+        }
+
+        osg::Camera* camera = cv->getCurrentCamera();
+        if (!camera)
+        {
+            traverse(node, nv);
+            return;
+        }
+
+        osg::Matrixd viewMat = *cv->getModelViewMatrix();
+        osg::Matrixd projMat = *cv->getProjectionMatrix();
+        const osg::Viewport* viewport = cv->getViewport();
+
+        if (!viewport)
+        {
+            traverse(node, nv);
+            return;
+        }
+
+        osg::Matrixd viewProjMat = viewMat * projMat;
+        osg::Matrixd windowMat = viewport->computeWindowMatrix();
+        osg::Matrixd mvpw = viewProjMat * windowMat;
+
+        std::vector<LabelItem> visibleLabels;
+        visibleLabels.reserve(group->getNumChildren());
+
+        for (unsigned int i = 0; i < group->getNumChildren(); ++i)
+        {
+            osg::Billboard* bb =
+                dynamic_cast<osg::Billboard*>(group->getChild(i));
+            if (!bb) continue;
+            if (bb->getNumDrawables() == 0) continue;
+
+            osg::Vec3 center = bb->getPosition(0);
+
+            osg::Vec3 eyePos = center * viewMat;
+
+            double dist = eyePos.length();
+
+            osg::Vec3 screenPos = center * mvpw;
+
+            visibleLabels.push_back({ bb, screenPos, dist });
+        }
+
+        std::sort(visibleLabels.begin(), visibleLabels.end(),
+                  [](const LabelItem& a, const LabelItem& b) {
+                      return a.distToCam < b.distToCam;
+                  });
+
+        std::vector<osg::Vec3> acceptedPositions;
+
+        for (auto& item : visibleLabels)
+        {
+            bool overlaps = false;
+            for (const auto& acceptedPos : acceptedPositions)
+            {
+                double dx = item.screenPos.x() - acceptedPos.x();
+                double dy = item.screenPos.y() - acceptedPos.y();
+
+                if ((dx * dx + dy * dy) < _minDistSq)
+                {
+                    overlaps = true;
+                    break;
+                }
+            }
+
+            if (!overlaps)
+            {
+                acceptedPositions.push_back(item.screenPos);
+                item.node->accept(*nv);
+            }
+        }
+    }
+};
+
+
+static std::string determineIconTexture(const std::string& type,
+                                        const std::string& subtype)
 {
     auto matches = [&](const std::string& keyword) {
         return (subtype.find(keyword) != std::string::npos
                 || type.find(keyword) != std::string::npos);
     };
 
-    // --- TRANSPORT ---
     if (matches("bus_stop")) return "bus.png";
     if (matches("tram_stop")) return "tram.png";
     if (matches("subway_entrance")) return "subway.png";
     if (matches("station")) return "train.png";
     if (matches("halt")) return "default.png";
 
-    // --- EDUKACJA ---
     if (matches("university")) return "university.png";
     if (matches("college")) return "university.png";
     if (matches("school")) return "school.png";
     if (matches("kindergarten")) return "school.png";
 
-    // --- GASTRONOMIA / ROZRYWKA ---
     if (matches("bar")) return "bar.png";
     if (matches("pub")) return "bar.png";
     if (matches("cafe")) return "cafe.png";
     if (matches("restaurant")) return "restaurant.png";
     if (matches("fast_food")) return "restaurant.png";
 
-    // --- ADMINISTRACJA ---
     if (matches("townhall")) return "hall.png";
     if (matches("government")) return "hall.png";
     if (matches("public_building")) return "hall.png";
 
-    return "default.png"; // Brak dopasowania
+    return "default.png";
 }
 
-osg::StateSet*
+static osg::StateSet*
 getSharedStateSet(const std::string& filename,
                   std::map<std::string, osg::ref_ptr<osg::StateSet>>& cache)
 {
@@ -250,8 +352,8 @@ getSharedStateSet(const std::string& filename,
     return ss.get();
 }
 
-osg::Billboard* createLabelNode(const LabelData& data,
-                                osg::StateSet* sharedIconStateSet)
+static osg::Billboard* createLabelNode(const LabelData& data,
+                                       osg::StateSet* sharedIconStateSet)
 {
     osg::Billboard* bb = new osg::Billboard();
     bb->setMode(osg::Billboard::POINT_ROT_EYE);
@@ -294,17 +396,55 @@ osg::Billboard* createLabelNode(const LabelData& data,
     if (!data.name.empty())
     {
         osgText::Text* text = new osgText::Text;
+
         static osg::ref_ptr<osgText::Font> sharedFont =
             osgText::readRefFontFile("fonts/arial.ttf");
         if (!sharedFont) sharedFont = osgText::readRefFontFile("arial.ttf");
 
         text->setFont(sharedFont);
-        text->setText(osgText::String(data.name, osgText::String::ENCODING_UTF8));
+
+        text->setText(
+            osgText::String(data.name, osgText::String::ENCODING_UTF8));
+
         text->setAlignment(osgText::Text::CENTER_BOTTOM);
         text->setAxisAlignment(osgText::Text::XZ_PLANE);
-        text->setCharacterSize(3.5f);
+
         text->setBackdropType(osgText::Text::OUTLINE);
-        text->setColor(osg::Vec4(1, 1, 1, 1));
+
+        float fontSize = 3.5f;
+        osg::Vec4 textColor(1.0f, 1.0f, 1.0f, 1.0f); 
+        osg::Vec4 outlineColor(0.0f, 0.0f, 0.0f, 1.0f);
+
+        auto checkType = [&](const std::string& keyword) {
+            return (data.subtype.find(keyword) != std::string::npos
+                    || data.type.find(keyword) != std::string::npos);
+        };
+
+        if (checkType("station") || checkType("subway") || checkType("tram"))
+        {
+            fontSize = 5.0f;
+            textColor.set(1.0f, 0.9f, 0.2f, 1.0f);
+        }
+        else if (checkType("university") || checkType("school")
+                 || checkType("college"))
+        {
+            fontSize = 4.2f;
+            textColor.set(0.6f, 0.8f, 1.0f, 1.0f);
+        }
+        else if (checkType("townhall") || checkType("government"))
+        {
+            fontSize = 4.5f;
+            textColor.set(1.0f, 0.6f, 0.6f, 1.0f);
+        }
+        else if (checkType("pub") || checkType("bar") || checkType("cafe"))
+        {
+            fontSize = 3.0f;
+            textColor.set(0.7f, 1.0f, 0.7f, 1.0f);
+        }
+
+        text->setCharacterSize(fontSize);
+        text->setColor(textColor);
+        text->setBackdropColor(outlineColor);
 
         float offsetZ = hasIcon ? 7.0f : 0.0f;
         bb->addDrawable(text, data.position + osg::Vec3(0, 0, offsetZ));
@@ -360,8 +500,6 @@ osg::Node* process_labels(osg::Matrixd& ltw, const std::string& file_path)
         ld.subtype = dbfReader.records[i].subtype;
         ld.type = dbfReader.records[i].type;
 
-        // Filtrowanie (pomijanie bardzo krótkich nazw i generycznych tagów w
-        // nazwie)
         if (ld.name.length() < 2) continue;
         if (ld.name == "public_transport" || ld.name == "bus_stop"
             || ld.name == "shelter" || ld.name == "platform")
@@ -381,9 +519,7 @@ osg::Node* process_labels(osg::Matrixd& ltw, const std::string& file_path)
 
         ld.position.z() += 25.0f;
 
-        // Dobieranie ikony wg Twojej listy
         std::string iconFile = determineIconTexture(ld.type, ld.subtype);
-
         osg::StateSet* iconSS = nullptr;
         if (!iconFile.empty())
         {
@@ -395,8 +531,8 @@ osg::Node* process_labels(osg::Matrixd& ltw, const std::string& file_path)
 
     std::cout << "--- LABELS: Utworzono " << labelsGroup->getNumChildren()
               << " etykiet." << std::endl;
-    std::cout << "--- TEXTURES: Zaladowano " << iconStateSets.size()
-              << " tekstur z folderu images/labelsTextures/." << std::endl;
+
+    labelsGroup->setCullCallback(new SortAndCullLabelsCallback(45.0));
 
     return labelsGroup;
 }
