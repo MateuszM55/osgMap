@@ -3,19 +3,7 @@
 /**
  * Implementation taken mostly from the official nvidia paper
  * https://developer.download.nvidia.com/assets/gamedev/files/sdk/11/FXAA_WhitePaper.pdf
- *
- * The look of this effect strongly depends on screen res etc. 
- * It looks fine locally (2160 x 1080), but may be overblurred 
- * on smaller resolutions. Feel free to play around with the 
- * shader parameters to fine tune the look of it.
  */
-
-/** FXAA settings */
-#define FXAA_EDGE_THRESHOLD     1.0 / 8.0   // luma threshold over which everything is considered an edge
-#define FXAA_EDGE_THRESHOLD_MIN 1.0 / 16.0  // minimum luma threshold that has to be satisfied by every edge
-#define FXAA_EDGE_SEARCH_STEPS  8           // number of pixels that will be checked during end-of-edge search
-#define FXAA_BLUR_CLOSE_DIST    1.0         // distance of the close pixels that will be averaged with the center pixel
-#define FXAA_BLUR_FAR_DIST      1.5         // distance of the far pixels that will be averaged with the center pixel
 
 /** Debug defines */
 // #define FXAA_DBG_SPLIT_SCREEN        // only process the left half of the viewport
@@ -27,6 +15,11 @@
 uniform sampler2D color_texture;
 uniform sampler2D depth_texture;
 uniform vec2 u_resolution;
+uniform float u_edge_threshold;         // luma threshold over which everything is considered an edge
+uniform float u_edge_threshold_min;     // minimum luma threshold that has to be satisfied by every edge
+uniform int u_edge_search_steps;        // number of pixels that will be checked during end-of-edge search
+uniform float u_blur_close_dist;        // distance of the close pixels that will be averaged with the center pixel
+uniform float u_blur_far_dist;          // distance of the far pixels that will be averaged with the center pixel
 
 in vec2 tex_coord;
 out vec4 fragColor;
@@ -68,7 +61,7 @@ vec3 fxaa() {
     float luma_max = max(luma_m, max(luma_n, max(luma_s, max(luma_e, luma_w))));
     float luma_range = luma_max - luma_min;
 
-    if (luma_range < max(FXAA_EDGE_THRESHOLD_MIN, luma_max * FXAA_EDGE_THRESHOLD)) {
+    if (luma_range < max(u_edge_threshold_min, luma_max * u_edge_threshold)) {
         #ifdef FXAA_DBG_DISCARD_NON_EDGE 
             return vec3(0.0, 0.0, 0.0);
         #else
@@ -112,7 +105,7 @@ vec3 fxaa() {
     bool done_positive = false;
     bool done_negative = false;
 
-    for (int i = 0; i < FXAA_EDGE_SEARCH_STEPS; i++) {
+    for (int i = 0; i < u_edge_search_steps; i++) {
         if (!done_positive) {
             distance_positive += distance_offset;
             luma_end_positive = getLuma(getPixel(distance_positive));
@@ -138,11 +131,11 @@ vec3 fxaa() {
     
     float bias = length_positive > length_negative ? offset : -offset;
     vec3 blurred = (
-        getPixel( FXAA_BLUR_CLOSE_DIST * distance_offset) +
-        getPixel( FXAA_BLUR_FAR_DIST   * distance_offset) +
-        getPixel(-FXAA_BLUR_CLOSE_DIST * distance_offset) +
-        getPixel(-FXAA_BLUR_FAR_DIST   * distance_offset) +
-        getPixel( FXAA_BLUR_CLOSE_DIST * distance_offset * bias)
+        getPixel( u_blur_close_dist * distance_offset) +
+        getPixel( u_blur_far_dist   * distance_offset) +
+        getPixel(-u_blur_close_dist * distance_offset) +
+        getPixel(-u_blur_far_dist   * distance_offset) +
+        getPixel( u_blur_close_dist * distance_offset * bias)
     ) / 5.0;
 
     return mix(rgb_m, blurred, sqrt(offset));

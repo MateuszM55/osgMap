@@ -67,20 +67,63 @@ public:
          osg::ref_ptr<osg::Texture2D>& out_color_texture,
          osg::ref_ptr<osg::Texture2D>& depth_texture, PostProcessor* parent)
         : Layer(in_color_texture, out_color_texture, depth_texture, "fxaa.frag",
-                parent)
+                parent),
+          m_resolution(new osg::Uniform("u_resolution", osg::Vec2(0.0f, 0.0f))),
+          m_edge_threshold(new osg::Uniform("u_edge_threshold", 1.0f / 8.0f)),
+          m_edge_threshold_min(
+              new osg::Uniform("u_edge_threshold_min", 1.0f / 16.0f)),
+          m_edge_search_steps(new osg::Uniform("u_edge_search_steps", 8)),
+          m_blur_close_distance(new osg::Uniform("u_blur_close_dist", 1.0f)),
+          m_blur_far_distance(new osg::Uniform("u_blur_far_dist", 1.5f))
     {
-        m_render_plane->getOrCreateStateSet()->addUniform(
-            new osg::Uniform("u_resolution", osg::Vec2(0.0f, 0.0f)));
+        osg::StateSet* state_set = m_render_plane->getOrCreateStateSet();
+        state_set->addUniform(m_resolution);
+        state_set->addUniform(m_edge_threshold);
+        state_set->addUniform(m_edge_threshold_min);
+        state_set->addUniform(m_edge_search_steps);
+        state_set->addUniform(m_blur_close_distance);
+        state_set->addUniform(m_blur_far_distance);
     }
     ~FXAA(void) override {}
 
     void resize(int width, int height) override
     {
         Layer::resize(width, height);
-        m_render_plane->getOrCreateStateSet()
-            ->getUniform("u_resolution")
-            ->set(osg::Vec2((float)width, (float)height));
+        m_resolution->set(osg::Vec2((float)width, (float)height));
     }
+
+    inline void setEdgeThreshold(float threshold)
+    {
+        m_edge_threshold->set(threshold);
+    }
+
+    inline void setEdgeThresholdMin(float threshold)
+    {
+        m_edge_threshold_min->set(threshold);
+    }
+
+    inline void setNumberSearchSteps(unsigned int num_search_steps)
+    {
+        m_edge_search_steps->set(num_search_steps);
+    }
+
+    inline void setBlurCloseDistance(float distance)
+    {
+        m_blur_close_distance->set(distance);
+    }
+
+    inline void setBlurFarDistance(float distance)
+    {
+        m_blur_far_distance->set(distance);
+    }
+
+private:
+    osg::ref_ptr<osg::Uniform> m_resolution;
+    osg::ref_ptr<osg::Uniform> m_edge_threshold;
+    osg::ref_ptr<osg::Uniform> m_edge_threshold_min;
+    osg::ref_ptr<osg::Uniform> m_edge_search_steps;
+    osg::ref_ptr<osg::Uniform> m_blur_close_distance;
+    osg::ref_ptr<osg::Uniform> m_blur_far_distance;
 };
 
 /**************************************************************************************************/
@@ -91,9 +134,29 @@ public:
         osg::ref_ptr<osg::Texture2D>& out_color_texture,
         osg::ref_ptr<osg::Texture2D>& depth_texture, PostProcessor* parent)
         : Layer(in_color_texture, out_color_texture, depth_texture, "dof.frag",
-                parent)
-    {}
+                parent),
+          m_max_blur(new osg::Uniform("u_max_blur", 0.03f)),
+          m_blur_ramp(new osg::Uniform("u_blur_ramp", 30.0f)),
+          m_focus_range(new osg::Uniform("u_focus_range", 0.986f))
+    {
+        osg::StateSet* state_set = m_render_plane->getOrCreateStateSet();
+        state_set->addUniform(m_max_blur);
+        state_set->addUniform(m_blur_ramp);
+        state_set->addUniform(m_focus_range);
+    }
     ~DOF(void) override {}
+
+    inline void setMaxBlur(float max_blur) { m_max_blur->set(max_blur); }
+    inline void setBlurRamp(float blur_ramp) { m_blur_ramp->set(blur_ramp); }
+    inline void setFocusRange(float focus_range)
+    {
+        m_focus_range->set(focus_range);
+    }
+
+private:
+    osg::ref_ptr<osg::Uniform> m_max_blur;
+    osg::ref_ptr<osg::Uniform> m_blur_ramp;
+    osg::ref_ptr<osg::Uniform> m_focus_range;
 };
 
 /**************************************************************************************************/
@@ -104,9 +167,30 @@ public:
           osg::ref_ptr<osg::Texture2D>& out_color_texture,
           osg::ref_ptr<osg::Texture2D>& depth_texture, PostProcessor* parent)
         : Layer(in_color_texture, out_color_texture, depth_texture,
-                "bloom.frag", parent)
-    {}
+                "bloom.frag", parent),
+          m_threshold(new osg::Uniform("u_threshold", 0.9f)),
+          m_knee(new osg::Uniform("u_knee", 0.4f)),
+          m_blur_step(new osg::Uniform("u_blur_step", 0.007f)),
+          m_intensity(new osg::Uniform("u_bloom_intensity", 2.0f))
+    {
+        osg::StateSet* state_set = m_render_plane->getOrCreateStateSet();
+        state_set->addUniform(m_threshold);
+        state_set->addUniform(m_knee);
+        state_set->addUniform(m_blur_step);
+        state_set->addUniform(m_intensity);
+    }
     ~Bloom(void) override {}
+
+    inline void setThreshold(float threshold) { m_threshold->set(threshold); }
+    inline void setKnee(float knee) { m_knee->set(knee); }
+    inline void setBlurStep(float blur_step) { m_blur_step->set(blur_step); }
+    inline void setIntensity(float intensity) { m_intensity->set(intensity); }
+
+private:
+    osg::ref_ptr<osg::Uniform> m_threshold;
+    osg::ref_ptr<osg::Uniform> m_knee;
+    osg::ref_ptr<osg::Uniform> m_blur_step;
+    osg::ref_ptr<osg::Uniform> m_intensity;
 };
 
 /**************************************************************************************************/

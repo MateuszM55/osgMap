@@ -26,8 +26,12 @@ private:
     std::function<bool(int, int)> m_handler;
 };
 
+/**************************************************************************************************/
+
 osg::Program* createProgram(const std::string& vert_filename,
                             const std::string& frag_filename);
+
+/**************************************************************************************************/
 
 osg::Geode* createRenderPlane(osg::ref_ptr<osg::Program>& program,
                               osg::ref_ptr<osg::Texture2D>& color_texture,

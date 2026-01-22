@@ -3,21 +3,21 @@
 uniform sampler2D color_texture;
 uniform sampler2D depth_texture;
 
-in vec2 tex_coord;
-out vec4 fragColor;
-
 // KONFIGURACJA
 
 // Maksymalny limit rozmycia (Wyzsza wartosc to bardziej rozmyte tlo)
-const float MAX_BLUR = 0.03; 
+uniform float u_max_blur; 
 
 // Sila rozmycia
 // Dostosuj to jesli tlo jest zbyt rozmyte lub za malo rozmyte (Wyzsza wartosc to bardziej rozmyte tlo)
-const float BLUR_RAMP = 30.0;
+uniform float u_blur_ramp;
 
 // Bezpieczna strefa (zachowanie ostrosci pobliskiego terenu)
 // Wszystko bardzo blisko pozostaje ostre
-const float FOCUS_RANGE = 0.986;
+uniform float u_focus_range;
+
+in vec2 tex_coord;
+out vec4 fragColor;
 
 void main() {
     vec4 sceneColor = texture2D(color_texture, tex_coord);
@@ -34,11 +34,11 @@ void main() {
     float dist = abs(depth - focusDepth);
 
     // Odjecie bezpiecznej strefy (zachowanie ostrosci pobliskiego terenu)
-    float factor = max(0.0, dist - FOCUS_RANGE);
+    float factor = max(0.0, dist - u_focus_range);
 
     // Ograniczenie i wzmocnienie
-    factor = clamp(factor, 0.0, MAX_BLUR);
-    float strength = factor * BLUR_RAMP;
+    factor = clamp(factor, 0.0, u_max_blur);
+    float strength = factor * u_blur_ramp;
     
     // Obliczenie kroku
     vec2 blurStep = vec2(1.0/800.0) * strength; 
