@@ -103,7 +103,8 @@ public:
     }
     ~FXAA(void) override {}
 
-    void setParameters(const Parameters& params) {
+    void setParameters(const Parameters& params)
+    {
         this->setEdgeThreshold(params.edge_threshold);
         this->setEdgeThresholdMin(params.edge_threshold_min);
         this->setNumberSearchSteps(params.number_search_steps);
@@ -148,7 +149,6 @@ private:
 
 class DOF final : public Layer {
 public:
-    
     struct Parameters
     {
         float max_blur = 0.03f;
@@ -196,7 +196,6 @@ private:
 
 class Bloom final : public Layer {
 public:
-    
     struct Parameters
     {
         float threshold = 0.9f;
