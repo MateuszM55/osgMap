@@ -1,6 +1,7 @@
 #pragma once
 
 #include <vector>
+#include <functional>
 
 #include <osg/Geode>
 #include <osg/Camera>
@@ -22,7 +23,14 @@ public:
           const std::string& frag_filename, PostProcessor* parent);
     virtual ~Layer(void) = 0;
 
-    virtual void resize(int width, int height);
+    void resize(int width, int height);
+    bool getActive(void)
+    {
+        bool val;
+        m_is_active->get(val);
+        return val;
+    }
+    inline void setActive(bool active) { m_is_active->set(active); }
 
 protected:
     osg::ref_ptr<osg::Geode> m_render_plane;
@@ -30,6 +38,8 @@ protected:
 private:
     static unsigned int s_layer_index;
     osg::ref_ptr<osg::Camera> m_camera;
+    osg::ref_ptr<osg::Uniform> m_resolution;
+    osg::ref_ptr<osg::Uniform> m_is_active;
 };
 
 /**************************************************************************************************/
@@ -68,7 +78,6 @@ public:
          osg::ref_ptr<osg::Texture2D>& depth_texture, PostProcessor* parent)
         : Layer(in_color_texture, out_color_texture, depth_texture, "fxaa.frag",
                 parent),
-          m_resolution(new osg::Uniform("u_resolution", osg::Vec2(0.0f, 0.0f))),
           m_edge_threshold(new osg::Uniform("u_edge_threshold", 1.0f / 8.0f)),
           m_edge_threshold_min(
               new osg::Uniform("u_edge_threshold_min", 1.0f / 16.0f)),
@@ -77,7 +86,6 @@ public:
           m_blur_far_distance(new osg::Uniform("u_blur_far_dist", 1.5f))
     {
         osg::StateSet* state_set = m_render_plane->getOrCreateStateSet();
-        state_set->addUniform(m_resolution);
         state_set->addUniform(m_edge_threshold);
         state_set->addUniform(m_edge_threshold_min);
         state_set->addUniform(m_edge_search_steps);
@@ -85,12 +93,6 @@ public:
         state_set->addUniform(m_blur_far_distance);
     }
     ~FXAA(void) override {}
-
-    void resize(int width, int height) override
-    {
-        Layer::resize(width, height);
-        m_resolution->set(osg::Vec2((float)width, (float)height));
-    }
 
     inline void setEdgeThreshold(float threshold)
     {
@@ -118,7 +120,6 @@ public:
     }
 
 private:
-    osg::ref_ptr<osg::Uniform> m_resolution;
     osg::ref_ptr<osg::Uniform> m_edge_threshold;
     osg::ref_ptr<osg::Uniform> m_edge_threshold_min;
     osg::ref_ptr<osg::Uniform> m_edge_search_steps;
@@ -206,8 +207,33 @@ public:
 
     template <typename T> T* getLayer(void);
     template <typename T> void pushLayer(void);
+    template <typename T>
+    osgGA::GUIEventHandler*
+    getActivationHandler(osgGA::GUIEventAdapter::KeySymbol activation_key);
 
 private:
+    class ResizeHandler : public osgGA::GUIEventHandler {
+    public:
+        ResizeHandler(const std::function<bool(int, int)>& handler);
+        bool handle(const osgGA::GUIEventAdapter& ea,
+                    osgGA::GUIActionAdapter& aa);
+
+    private:
+        std::function<bool(int, int)> m_handler;
+    };
+
+    class ActivationHandler : public osgGA::GUIEventHandler {
+    public:
+        ActivationHandler(
+            const std::function<bool(osgGA::GUIEventAdapter::KeySymbol)>&
+                handler);
+        bool handle(const osgGA::GUIEventAdapter& ea,
+                    osgGA::GUIActionAdapter& aa);
+
+    private:
+        std::function<bool(osgGA::GUIEventAdapter::KeySymbol)> m_handler;
+    };
+
     enum Buffer
     {
         FRAME_BUFFER = 0,
@@ -265,4 +291,25 @@ template <typename T> void PostProcessor::pushLayer(void)
 
 /**************************************************************************************************/
 
+template <typename T>
+osgGA::GUIEventHandler* PostProcessor::getActivationHandler(
+    osgGA::GUIEventAdapter::KeySymbol activation_key)
+{
+    static_assert(
+        std::is_base_of<Layer, T>::value,
+        "Template argument must be derived from osgMap::postfx::Layer class");
+
+    return new ActivationHandler(
+        [this, activation_key](osgGA::GUIEventAdapter::KeySymbol key) -> bool {
+            Layer* layer = nullptr;
+            if (activation_key != key || !(layer = this->getLayer<T>()))
+            {
+                return false;
+            }
+            layer->setActive(!layer->getActive());
+            return true;
+        });
+}
+
+/**************************************************************************************************/
 };

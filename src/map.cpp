@@ -261,6 +261,12 @@ int main(int argc, char** argv)
     ppu->pushLayer<osgMap::postfx::DOF>();
     ppu->pushLayer<osgMap::postfx::Bloom>();
     viewer->addEventHandler(ppu->getResizeHandler());
+    viewer->addEventHandler(ppu->getActivationHandler<osgMap::postfx::FXAA>(
+        osgGA::GUIEventAdapter::KeySymbol::KEY_1));
+    viewer->addEventHandler(ppu->getActivationHandler<osgMap::postfx::DOF>(
+        osgGA::GUIEventAdapter::KeySymbol::KEY_2));
+    viewer->addEventHandler(ppu->getActivationHandler<osgMap::postfx::Bloom>(
+        osgGA::GUIEventAdapter::KeySymbol::KEY_3));
 
     osg::Vec3d wtrans = wbb.center();
     wtrans.normalize();

@@ -1,6 +1,8 @@
 #version 330
 
 uniform sampler2D color_texture;
+uniform bool u_is_active;
+
 in vec2 tex_coord;
 out vec4 fragColor;
 
@@ -23,6 +25,8 @@ vec3 get_bloom(vec2 uv) {
 void main()
 {
     vec3 sceneCol = texture(color_texture, tex_coord).rgb;
+    if (!u_is_active) { fragColor = vec4(sceneCol, 1.0); return; }
+
     vec3 bloom = vec3(0.0);
 
     int directions = 12;

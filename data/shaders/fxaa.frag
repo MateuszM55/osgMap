@@ -15,6 +15,8 @@
 uniform sampler2D color_texture;
 uniform sampler2D depth_texture;
 uniform vec2 u_resolution;
+uniform bool u_is_active;
+
 uniform float u_edge_threshold;         // luma threshold over which everything is considered an edge
 uniform float u_edge_threshold_min;     // minimum luma threshold that has to be satisfied by every edge
 uniform int u_edge_search_steps;        // number of pixels that will be checked during end-of-edge search
@@ -142,5 +144,5 @@ vec3 fxaa() {
 }
 
 void main() {
-    fragColor = vec4(fxaa(), 1.0);
+    fragColor = u_is_active ? vec4(fxaa(), 1.0) : texture(color_texture, tex_coord);
 }

@@ -17,17 +17,6 @@ static std::string s_shader_path = SHADER_PATH;
 /* MISC */
 /**************************************************************************************************/
 
-class ResizeHandler : public osgGA::GUIEventHandler {
-public:
-    ResizeHandler(const std::function<bool(int, int)>& handler);
-    bool handle(const osgGA::GUIEventAdapter& ea, osgGA::GUIActionAdapter& aa);
-
-private:
-    std::function<bool(int, int)> m_handler;
-};
-
-/**************************************************************************************************/
-
 osg::Program* createProgram(const std::string& vert_filename,
                             const std::string& frag_filename);
 
@@ -50,12 +39,16 @@ Layer::Layer(osg::ref_ptr<osg::Texture2D>& in_color_texture,
              osg::ref_ptr<osg::Texture2D>& out_color_texture,
              osg::ref_ptr<osg::Texture2D>& depth_texture,
              const std::string& frag_filename, PostProcessor* parent)
-    : m_camera(new osg::Camera)
+    : m_camera(new osg::Camera), m_resolution(new osg::Uniform("u_resolution", Vec2(0.0f, 0.0f))),
+      m_is_active(new osg::Uniform("u_is_active", true))
 {
     osg::ref_ptr<osg::Program> program =
         createProgram("passthrough.vert", frag_filename);
     m_render_plane =
         createRenderPlane(program, in_color_texture, depth_texture);
+    osg::StateSet* state_set = m_render_plane->getOrCreateStateSet();
+    state_set->addUniform(m_resolution);
+    state_set->addUniform(m_is_active);
 
     m_camera->setRenderTargetImplementation(osg::Camera::FRAME_BUFFER_OBJECT);
     m_camera->attach(osg::Camera::COLOR_BUFFER0, out_color_texture.get());
@@ -81,6 +74,7 @@ void Layer::resize(int width, int height)
 {
     m_camera->setViewport(0, 0, width, height);
     m_camera->resizeAttachments(width, height);
+    m_resolution->set(osg::Vec2((float)width, (float)height));
 }
 
 /**************************************************************************************************/
@@ -169,16 +163,14 @@ osg::Projection* PostProcessor::getRenderPlaneProjection(void)
 }
 
 /**************************************************************************************************/
-/* MISC */
-/**************************************************************************************************/
 
-ResizeHandler::ResizeHandler(const std::function<bool(int, int)>& handler)
+PostProcessor::ResizeHandler::ResizeHandler(const std::function<bool(int, int)>& handler)
     : m_handler(handler)
 {}
 
 /**************************************************************************************************/
 
-bool ResizeHandler::handle(const osgGA::GUIEventAdapter& ea,
+bool PostProcessor::ResizeHandler::handle(const osgGA::GUIEventAdapter& ea,
                            osgGA::GUIActionAdapter& aa)
 {
     return ea.getEventType() & osgGA::GUIEventAdapter::RESIZE
@@ -186,6 +178,25 @@ bool ResizeHandler::handle(const osgGA::GUIEventAdapter& ea,
         : false;
 }
 
+/**************************************************************************************************/
+
+PostProcessor::ActivationHandler::ActivationHandler(
+    const std::function<bool(osgGA::GUIEventAdapter::KeySymbol)>& handler)
+    : m_handler(handler)
+{}
+
+/**************************************************************************************************/
+
+bool PostProcessor::ActivationHandler::handle(const osgGA::GUIEventAdapter& ea,
+                                              osgGA::GUIActionAdapter& aa)
+{
+    return ea.getEventType() & osgGA::GUIEventAdapter::KEYDOWN
+        ? m_handler((osgGA::GUIEventAdapter::KeySymbol)ea.getKey())
+        : false;
+}
+
+/**************************************************************************************************/
+/* MISC */
 /**************************************************************************************************/
 
 osg::Program* createProgram(const std::string& vert_filename,

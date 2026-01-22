@@ -2,6 +2,7 @@
 
 uniform sampler2D color_texture;
 uniform sampler2D depth_texture;
+uniform bool u_is_active;
 
 // KONFIGURACJA
 
@@ -21,6 +22,7 @@ out vec4 fragColor;
 
 void main() {
     vec4 sceneColor = texture2D(color_texture, tex_coord);
+    if (!u_is_active) { fragColor = sceneColor; return; }
     
     // Pobranie glebi
     float depth = texture2D(depth_texture, tex_coord).r;
