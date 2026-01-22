@@ -248,7 +248,7 @@ int main(int argc, char** argv)
     osg::ref_ptr<osg::Node> buildings_model = process_buildings(ltw, file_path);
     osg::ref_ptr<osg::Node> labels_model = process_labels(ltw, file_path);
 
-    osg::ref_ptr<osg::Geode> scene = new osg::Geode;
+    osg::ref_ptr<osg::Group> scene = new osg::Group;
     scene->addChild(land_model);
     scene->addChild(water_model);
     scene->addChild(roads_model);
