@@ -12,21 +12,24 @@ namespace osgMap::postfx {
 
 /**************************************************************************************************/
 
-class Layer {
-    friend class PostProcessor;
+class PostProcessor;
 
+class Layer {
 public:
     Layer(osg::ref_ptr<osg::Texture2D>& in_color_texture,
           osg::ref_ptr<osg::Texture2D>& out_color_texture,
           osg::ref_ptr<osg::Texture2D>& depth_texture,
-          const std::string& frag_filename);
+          const std::string& frag_filename, PostProcessor* parent);
     virtual ~Layer(void) = 0;
 
     virtual void resize(int width, int height);
 
 protected:
-    osg::ref_ptr<osg::Camera> m_camera;
     osg::ref_ptr<osg::Geode> m_render_plane;
+
+private:
+    static unsigned int s_layer_index;
+    osg::ref_ptr<osg::Camera> m_camera;
 };
 
 /**************************************************************************************************/
@@ -35,9 +38,10 @@ class Passthrough final : public Layer {
 public:
     Passthrough(osg::ref_ptr<osg::Texture2D>& in_color_texture,
                 osg::ref_ptr<osg::Texture2D>& out_color_texture,
-                osg::ref_ptr<osg::Texture2D>& depth_texture)
+                osg::ref_ptr<osg::Texture2D>& depth_texture,
+                PostProcessor* parent)
         : Layer(in_color_texture, out_color_texture, depth_texture,
-                "passthrough.frag")
+                "passthrough.frag", parent)
     {}
     ~Passthrough(void) override {}
 };
@@ -48,8 +52,9 @@ class UV final : public Layer {
 public:
     UV(osg::ref_ptr<osg::Texture2D>& in_color_texture,
        osg::ref_ptr<osg::Texture2D>& out_color_texture,
-       osg::ref_ptr<osg::Texture2D>& depth_texture)
-        : Layer(in_color_texture, out_color_texture, depth_texture, "uv.frag")
+       osg::ref_ptr<osg::Texture2D>& depth_texture, PostProcessor* parent)
+        : Layer(in_color_texture, out_color_texture, depth_texture, "uv.frag",
+                parent)
     {}
     ~UV(void) override {}
 };
@@ -60,8 +65,9 @@ class FXAA final : public Layer {
 public:
     FXAA(osg::ref_ptr<osg::Texture2D>& in_color_texture,
          osg::ref_ptr<osg::Texture2D>& out_color_texture,
-         osg::ref_ptr<osg::Texture2D>& depth_texture)
-        : Layer(in_color_texture, out_color_texture, depth_texture, "fxaa.frag")
+         osg::ref_ptr<osg::Texture2D>& depth_texture, PostProcessor* parent)
+        : Layer(in_color_texture, out_color_texture, depth_texture, "fxaa.frag",
+                parent)
     {
         m_render_plane->getOrCreateStateSet()->addUniform(
             new osg::Uniform("u_resolution", osg::Vec2(0.0f, 0.0f)));
@@ -83,8 +89,9 @@ class DOF final : public Layer {
 public:
     DOF(osg::ref_ptr<osg::Texture2D>& in_color_texture,
         osg::ref_ptr<osg::Texture2D>& out_color_texture,
-        osg::ref_ptr<osg::Texture2D>& depth_texture)
-        : Layer(in_color_texture, out_color_texture, depth_texture, "dof.frag")
+        osg::ref_ptr<osg::Texture2D>& depth_texture, PostProcessor* parent)
+        : Layer(in_color_texture, out_color_texture, depth_texture, "dof.frag",
+                parent)
     {}
     ~DOF(void) override {}
 };
@@ -95,9 +102,9 @@ class Bloom final : public Layer {
 public:
     Bloom(osg::ref_ptr<osg::Texture2D>& in_color_texture,
           osg::ref_ptr<osg::Texture2D>& out_color_texture,
-          osg::ref_ptr<osg::Texture2D>& depth_texture)
+          osg::ref_ptr<osg::Texture2D>& depth_texture, PostProcessor* parent)
         : Layer(in_color_texture, out_color_texture, depth_texture,
-                "bloom.frag")
+                "bloom.frag", parent)
     {}
     ~Bloom(void) override {}
 };
@@ -165,11 +172,8 @@ template <typename T> void PostProcessor::pushLayer(void)
     buffer_in = !m_layers.size() ? Buffer::FRAME_BUFFER : buffer_in;
 
     Layer* new_layer = new T(m_buffers[buffer_in], m_buffers[buffer_out],
-                             m_buffers[Buffer::DEPTH_BUFFER]);
+                             m_buffers[Buffer::DEPTH_BUFFER], this);
 
-    new_layer->m_camera->setRenderOrder(osg::Camera::PRE_RENDER,
-                                        m_layers.size() + 1);
-    this->addChild(new_layer->m_camera);
     m_layers.push_back(new_layer);
     m_render_plane->getOrCreateStateSet()->setTextureAttributeAndModes(
         0, m_buffers[buffer_out].get());

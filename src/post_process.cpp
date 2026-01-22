@@ -37,10 +37,15 @@ osg::Geode* createRenderPlane(osg::ref_ptr<osg::Program>& program,
 /* LAYER */
 /**************************************************************************************************/
 
+unsigned int Layer::s_layer_index =
+    1; // 0 is reserved for the PostProcessor class
+
+/**************************************************************************************************/
+
 Layer::Layer(osg::ref_ptr<osg::Texture2D>& in_color_texture,
              osg::ref_ptr<osg::Texture2D>& out_color_texture,
              osg::ref_ptr<osg::Texture2D>& depth_texture,
-             const std::string& frag_filename)
+             const std::string& frag_filename, PostProcessor* parent)
     : m_camera(new osg::Camera)
 {
     osg::ref_ptr<osg::Program> program =
@@ -53,8 +58,13 @@ Layer::Layer(osg::ref_ptr<osg::Texture2D>& in_color_texture,
     m_camera->setReferenceFrame(osg::Transform::ABSOLUTE_RF);
     m_camera->setViewMatrix(osg::Matrix::identity());
     m_camera->setProjectionMatrix(osg::Matrix::ortho2D(-1, 1, -1, 1));
+    m_camera->setRenderOrder(osg::Camera::PRE_RENDER, s_layer_index++);
+    m_camera->setAllowEventFocus(false);
     m_camera->setClearMask(0);
+    m_camera->setInheritanceMask(m_camera->getInheritanceMask()
+                                 & ~osg::Camera::CULL_MASK);
     m_camera->addChild(m_render_plane);
+    parent->addChild(m_camera);
 }
 
 /**************************************************************************************************/
@@ -99,6 +109,9 @@ PostProcessor::PostProcessor(osg::Group* scene): m_camera(new osg::Camera)
     m_camera->setClearColor(osg::Vec4(0.0f, 0.0f, 0.0f, 1.0f));
     m_camera->setClearMask(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     m_camera->setRenderTargetImplementation(osg::Camera::FRAME_BUFFER_OBJECT);
+    m_camera->setAllowEventFocus(false);
+    m_camera->setInheritanceMask(m_camera->getInheritanceMask()
+                                 & ~osg::Camera::CULL_MASK);
     m_camera->attach(osg::Camera::DEPTH_BUFFER,
                      m_buffers[Buffer::DEPTH_BUFFER].get());
     m_camera->attach(osg::Camera::COLOR_BUFFER0,
@@ -155,6 +168,22 @@ osg::Projection* PostProcessor::getRenderPlaneProjection(void)
 /* MISC */
 /**************************************************************************************************/
 
+ResizeHandler::ResizeHandler(const std::function<bool(int, int)>& handler)
+    : m_handler(handler)
+{}
+
+/**************************************************************************************************/
+
+bool ResizeHandler::handle(const osgGA::GUIEventAdapter& ea,
+                           osgGA::GUIActionAdapter& aa)
+{
+    return ea.getEventType() & osgGA::GUIEventAdapter::RESIZE
+        ? m_handler(ea.getWindowWidth(), ea.getWindowHeight())
+        : false;
+}
+
+/**************************************************************************************************/
+
 osg::Program* createProgram(const std::string& vert_filename,
                             const std::string& frag_filename)
 {
@@ -180,14 +209,6 @@ osg::Geode* createRenderPlane(osg::ref_ptr<osg::Program>& program,
     vertices->push_back(osg::Vec3(1.0f, 1.0f, 0.0f));
     vertices->push_back(osg::Vec3(-1.0f, 1.0f, 0.0f));
 
-    osg::ref_ptr<osg::Vec3Array> normals = new osg::Vec3Array;
-    normals->push_back(osg::Vec3(0.0f, 0.0f, -1.0f));
-    normals->push_back(osg::Vec3(0.0f, 0.0f, -1.0f));
-    normals->push_back(osg::Vec3(0.0f, 0.0f, -1.0f));
-    normals->push_back(osg::Vec3(0.0f, 0.0f, -1.0f));
-    normals->push_back(osg::Vec3(0.0f, 0.0f, -1.0f));
-    normals->push_back(osg::Vec3(0.0f, 0.0f, -1.0f));
-
     osg::ref_ptr<osg::Vec2Array> tex_coords = new osg::Vec2Array;
     tex_coords->push_back(osg::Vec2(0.0f, 0.0f));
     tex_coords->push_back(osg::Vec2(1.0f, 0.0f));
@@ -198,7 +219,6 @@ osg::Geode* createRenderPlane(osg::ref_ptr<osg::Program>& program,
 
     osg::ref_ptr<osg::Geometry> geometry = new osg::Geometry;
     geometry->setVertexArray(vertices);
-    geometry->setNormalArray(normals);
     geometry->setTexCoordArray(0, tex_coords.get(),
                                osg::Array::Binding::BIND_PER_VERTEX);
     geometry->addPrimitiveSet(new osg::DrawArrays(GL_TRIANGLES, 0, 6));
@@ -217,21 +237,6 @@ osg::Geode* createRenderPlane(osg::ref_ptr<osg::Program>& program,
     state_set->setTextureAttributeAndModes(1, depth_texture.get());
 
     return plane;
-}
-/**************************************************************************************************/
-
-ResizeHandler::ResizeHandler(const std::function<bool(int, int)>& handler)
-    : m_handler(handler)
-{}
-
-/**************************************************************************************************/
-
-bool ResizeHandler::handle(const osgGA::GUIEventAdapter& ea,
-                           osgGA::GUIActionAdapter& aa)
-{
-    return ea.getEventType() & osgGA::GUIEventAdapter::RESIZE
-        ? m_handler(ea.getWindowWidth(), ea.getWindowHeight())
-        : false;
 }
 
 /**************************************************************************************************/
