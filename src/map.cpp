@@ -72,6 +72,33 @@ int main(int argc, char** argv)
         "--max-tilt <degrees>",
         "Maximum camera tilt angle in degrees (0-90, default: 75)");
 
+    /**
+     * Even though postfx have more parameters,
+     * they shouldn't really be modified by the user
+     */
+    arguments.getApplicationUsage()->addCommandLineOption(
+        "--fxaa-search-steps <num_steps>",
+        "Amount of search steps performed by FXXA (default: 8)");
+    arguments.getApplicationUsage()->addCommandLineOption(
+        "--fxaa-blur-close <distance_px>",
+        "Close distance of the FXAA blur (default: 1px)");
+    arguments.getApplicationUsage()->addCommandLineOption(
+        "--fxaa-blur-far <distance_px>",
+        "Far distance of the FXAA blur (default 1.5px)");
+
+    arguments.getApplicationUsage()->addCommandLineOption(
+        "--dof-max-blur <value>",
+        "Maximum Depth Of Field blur intensity (default 0.03)");
+    arguments.getApplicationUsage()->addCommandLineOption(
+        "--dof-focus-range <value>",
+        "Focus range of the Depth Of Field (default 0.986)");
+
+    arguments.getApplicationUsage()->addCommandLineOption(
+        "--bloom-threshold <value>",
+        "Threshold of the Bloom effect (default 0.9)");
+    arguments.getApplicationUsage()->addCommandLineOption(
+        "--bloom-intensity <value>",
+        "Intensity of the Bloom effect (default 2.0)");
 
     ellipsoid = new osg::EllipsoidModel;
     viewer = new osgViewer::Viewer(arguments);
@@ -188,6 +215,18 @@ int main(int argc, char** argv)
         viewer->setCameraManipulator(keyswitchManipulator.get());
     }
 
+    osgMap::postfx::FXAA::Parameters fxaa_params;
+    osgMap::postfx::DOF::Parameters dof_params;
+    osgMap::postfx::Bloom::Parameters bloom_params;
+    {
+        arguments.read("--fxaa-search-steps", fxaa_params.number_search_steps);
+        arguments.read("--fxaa-blur-close", fxaa_params.blur_close_distance);
+        arguments.read("--fxaa-blur-far", fxaa_params.blur_far_distance);
+        arguments.read("--dof-max-blur", dof_params.max_blur);
+        arguments.read("--dof-focus-range", dof_params.focus_range);
+        arguments.read("--bloom-threshold", bloom_params.threshold);
+        arguments.read("--bloom-intensity", bloom_params.intensity);
+    }
 
     // add the state manipulator
     viewer->addEventHandler(new osgGA::StateSetManipulator(
@@ -255,18 +294,34 @@ int main(int argc, char** argv)
     scene->addChild(buildings_model);
     scene->addChild(labels_model);
 
+    /**************/
+    /** PPU SETUP */
+    /**************/
     osg::ref_ptr<osgMap::postfx::PostProcessor> ppu =
         new osgMap::postfx::PostProcessor(scene);
-    ppu->pushLayer<osgMap::postfx::FXAA>();
-    ppu->pushLayer<osgMap::postfx::DOF>();
-    ppu->pushLayer<osgMap::postfx::Bloom>();
-    viewer->addEventHandler(ppu->getResizeHandler());
-    viewer->addEventHandler(ppu->getActivationHandler<osgMap::postfx::FXAA>(
-        osgGA::GUIEventAdapter::KeySymbol::KEY_1));
-    viewer->addEventHandler(ppu->getActivationHandler<osgMap::postfx::DOF>(
-        osgGA::GUIEventAdapter::KeySymbol::KEY_2));
-    viewer->addEventHandler(ppu->getActivationHandler<osgMap::postfx::Bloom>(
-        osgGA::GUIEventAdapter::KeySymbol::KEY_3));
+    {
+        ppu->pushLayer<osgMap::postfx::FXAA>();
+        ppu->pushLayer<osgMap::postfx::DOF>();
+        ppu->pushLayer<osgMap::postfx::Bloom>();
+
+        static_cast<osgMap::postfx::FXAA*>(
+            ppu->getLayer<osgMap::postfx::FXAA>())
+            ->setParameters(fxaa_params);
+        static_cast<osgMap::postfx::DOF*>(ppu->getLayer<osgMap::postfx::DOF>())
+            ->setParameters(dof_params);
+        static_cast<osgMap::postfx::Bloom*>(
+            ppu->getLayer<osgMap::postfx::Bloom>())
+            ->setParameters(bloom_params);
+
+        viewer->addEventHandler(ppu->getResizeHandler());
+        viewer->addEventHandler(ppu->getActivationHandler<osgMap::postfx::FXAA>(
+            osgGA::GUIEventAdapter::KeySymbol::KEY_1));
+        viewer->addEventHandler(ppu->getActivationHandler<osgMap::postfx::DOF>(
+            osgGA::GUIEventAdapter::KeySymbol::KEY_2));
+        viewer->addEventHandler(
+            ppu->getActivationHandler<osgMap::postfx::Bloom>(
+                osgGA::GUIEventAdapter::KeySymbol::KEY_3));
+    }
 
     osg::Vec3d wtrans = wbb.center();
     wtrans.normalize();

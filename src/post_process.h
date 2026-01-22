@@ -73,14 +73,23 @@ public:
 
 class FXAA final : public Layer {
 public:
+    struct Parameters
+    {
+        int number_search_steps = 8;
+        float edge_threshold = 0.125f;
+        float edge_threshold_min = 0.0625f;
+        float blur_close_distance = 1.0f;
+        float blur_far_distance = 1.5f;
+    };
+
     FXAA(osg::ref_ptr<osg::Texture2D>& in_color_texture,
          osg::ref_ptr<osg::Texture2D>& out_color_texture,
          osg::ref_ptr<osg::Texture2D>& depth_texture, PostProcessor* parent)
         : Layer(in_color_texture, out_color_texture, depth_texture, "fxaa.frag",
                 parent),
-          m_edge_threshold(new osg::Uniform("u_edge_threshold", 1.0f / 8.0f)),
+          m_edge_threshold(new osg::Uniform("u_edge_threshold", 0.125f)),
           m_edge_threshold_min(
-              new osg::Uniform("u_edge_threshold_min", 1.0f / 16.0f)),
+              new osg::Uniform("u_edge_threshold_min", 0.0625f)),
           m_edge_search_steps(new osg::Uniform("u_edge_search_steps", 8)),
           m_blur_close_distance(new osg::Uniform("u_blur_close_dist", 1.0f)),
           m_blur_far_distance(new osg::Uniform("u_blur_far_dist", 1.5f))
@@ -93,6 +102,14 @@ public:
         state_set->addUniform(m_blur_far_distance);
     }
     ~FXAA(void) override {}
+
+    void setParameters(const Parameters& params) {
+        this->setEdgeThreshold(params.edge_threshold);
+        this->setEdgeThresholdMin(params.edge_threshold_min);
+        this->setNumberSearchSteps(params.number_search_steps);
+        this->setBlurCloseDistance(params.blur_close_distance);
+        this->setBlurFarDistance(params.blur_far_distance);
+    }
 
     inline void setEdgeThreshold(float threshold)
     {
@@ -131,6 +148,14 @@ private:
 
 class DOF final : public Layer {
 public:
+    
+    struct Parameters
+    {
+        float max_blur = 0.03f;
+        float blur_ramp = 30.0f;
+        float focus_range = 0.986f;
+    };
+
     DOF(osg::ref_ptr<osg::Texture2D>& in_color_texture,
         osg::ref_ptr<osg::Texture2D>& out_color_texture,
         osg::ref_ptr<osg::Texture2D>& depth_texture, PostProcessor* parent)
@@ -146,6 +171,13 @@ public:
         state_set->addUniform(m_focus_range);
     }
     ~DOF(void) override {}
+
+    void setParameters(const Parameters& params)
+    {
+        this->setMaxBlur(params.max_blur);
+        this->setBlurRamp(params.blur_ramp);
+        this->setFocusRange(params.focus_range);
+    }
 
     inline void setMaxBlur(float max_blur) { m_max_blur->set(max_blur); }
     inline void setBlurRamp(float blur_ramp) { m_blur_ramp->set(blur_ramp); }
@@ -164,6 +196,15 @@ private:
 
 class Bloom final : public Layer {
 public:
+    
+    struct Parameters
+    {
+        float threshold = 0.9f;
+        float knee = 0.4f;
+        float blur_step = 0.007f;
+        float intensity = 2.0f;
+    };
+
     Bloom(osg::ref_ptr<osg::Texture2D>& in_color_texture,
           osg::ref_ptr<osg::Texture2D>& out_color_texture,
           osg::ref_ptr<osg::Texture2D>& depth_texture, PostProcessor* parent)
@@ -181,6 +222,14 @@ public:
         state_set->addUniform(m_intensity);
     }
     ~Bloom(void) override {}
+
+    void setParameters(const Parameters& params)
+    {
+        this->setThreshold(params.threshold);
+        this->setKnee(params.knee);
+        this->setBlurStep(params.blur_step);
+        this->setIntensity(params.intensity);
+    }
 
     inline void setThreshold(float threshold) { m_threshold->set(threshold); }
     inline void setKnee(float knee) { m_knee->set(knee); }
