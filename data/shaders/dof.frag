@@ -3,6 +3,7 @@
 uniform sampler2D color_texture;
 uniform sampler2D depth_texture;
 uniform bool u_is_active;
+uniform vec2 u_resolution;
 
 // KONFIGURACJA
 
@@ -43,7 +44,7 @@ void main() {
     float strength = factor * u_blur_ramp;
     
     // Obliczenie kroku
-    vec2 blurStep = vec2(1.0/800.0) * strength; 
+    vec2 blurStep = vec2(strength) / u_resolution;
 
     // Probkowanie Rozmycia
     vec4 sum = vec4(0.0);

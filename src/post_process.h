@@ -121,7 +121,7 @@ public:
         m_edge_threshold_min->set(threshold);
     }
 
-    inline void setNumberSearchSteps(unsigned int num_search_steps)
+    inline void setNumberSearchSteps(int num_search_steps)
     {
         m_edge_search_steps->set(num_search_steps);
     }
@@ -152,7 +152,7 @@ public:
     struct Parameters
     {
         float max_blur = 0.03f;
-        float blur_ramp = 30.0f;
+        float blur_ramp = 100.0f;
         float focus_range = 0.986f;
     };
 
@@ -162,7 +162,7 @@ public:
         : Layer(in_color_texture, out_color_texture, depth_texture, "dof.frag",
                 parent),
           m_max_blur(new osg::Uniform("u_max_blur", 0.03f)),
-          m_blur_ramp(new osg::Uniform("u_blur_ramp", 30.0f)),
+          m_blur_ramp(new osg::Uniform("u_blur_ramp", 100.0f)),
           m_focus_range(new osg::Uniform("u_focus_range", 0.986f))
     {
         osg::StateSet* state_set = m_render_plane->getOrCreateStateSet();
