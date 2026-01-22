@@ -39,7 +39,8 @@ Layer::Layer(osg::ref_ptr<osg::Texture2D>& in_color_texture,
              osg::ref_ptr<osg::Texture2D>& out_color_texture,
              osg::ref_ptr<osg::Texture2D>& depth_texture,
              const std::string& frag_filename, PostProcessor* parent)
-    : m_camera(new osg::Camera), m_resolution(new osg::Uniform("u_resolution", Vec2(0.0f, 0.0f))),
+    : m_camera(new osg::Camera),
+      m_resolution(new osg::Uniform("u_resolution", Vec2(0.0f, 0.0f))),
       m_is_active(new osg::Uniform("u_is_active", true))
 {
     osg::ref_ptr<osg::Program> program =
@@ -164,14 +165,15 @@ osg::Projection* PostProcessor::getRenderPlaneProjection(void)
 
 /**************************************************************************************************/
 
-PostProcessor::ResizeHandler::ResizeHandler(const std::function<bool(int, int)>& handler)
+PostProcessor::ResizeHandler::ResizeHandler(
+    const std::function<bool(int, int)>& handler)
     : m_handler(handler)
 {}
 
 /**************************************************************************************************/
 
 bool PostProcessor::ResizeHandler::handle(const osgGA::GUIEventAdapter& ea,
-                           osgGA::GUIActionAdapter& aa)
+                                          osgGA::GUIActionAdapter& aa)
 {
     return ea.getEventType() & osgGA::GUIEventAdapter::RESIZE
         ? m_handler(ea.getWindowWidth(), ea.getWindowHeight())
