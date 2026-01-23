@@ -334,7 +334,7 @@ void parse_meta_data(osg::Node* model)
             uint32_t hc = (uint32_t)std::lround(h * 100.0f);
             seed ^= hc + 0x9e3779b9u + (seed << 6) + (seed >> 2);
 
-            roofIdx = (int)(seed % (uint32_t)g_roofTextures.size()-1);
+            roofIdx = (int)(seed % (uint32_t)g_roofTextures.size() - 1);
         }
 
         extrude_simple(geode, geoms[i].get(), h, roofIdx, 8.0f);
