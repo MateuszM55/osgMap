@@ -5,7 +5,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 # Define the executable target
-add_executable(${PROJECT_NAME} map.cpp landuse.cpp water.cpp roads.cpp buildings.cpp camera_manip.cpp post_process.cpp labels.cpp)
+add_executable(${PROJECT_NAME} map.cpp landuse.cpp water.cpp roads.cpp buildings.cpp camera_manip.cpp post_process.cpp labels.cpp HUD.cpp HUD.h)
 
 # Link against OpenSceneGraph libraries
 # Używamy zmiennej OPENSCENEGRAPH_LIBRARIES, która zawiera pełne ścieżki lub nazwy bibliotek z find_package
@@ -25,3 +25,6 @@ link_directories(${OPENSCENEGRAPH_LIBRARY_DIRS})
 
 # Optionally, if you have assets, you could add a custom command to copy them
 # For this map, we'll just have a README in the assets folder.
+target_compile_definitions(${PROJECT_NAME}
+    PRIVATE SHADER_PATH="${CMAKE_SOURCE_DIR}/data/shaders/"
+)
