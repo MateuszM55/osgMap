@@ -320,7 +320,7 @@ void parse_meta_data(osg::Node* model)
         }
 
         extrude_simple(geode, geoms[i].get(), h, roofIdx, 8.0f);
-        geode->removeDrawable(geoms[i].get());
+
 
         if (i > 0 && (i % 10000) == 0)
             std::cout << "[INFO] Extruded " << i << " buildings\n";
