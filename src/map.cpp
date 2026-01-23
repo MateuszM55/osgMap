@@ -28,13 +28,14 @@
 #include "common.h"
 #include "HUD.h"
 #include "camera_manip.h"
+#include "post_process.h"
+
 using namespace osg;
 float g_targetAlpha = 0.0f;
 float g_currentAlpha = 0.0f;
 
 osg::ref_ptr<osgViewer::Viewer> viewer;
 osg::ref_ptr<osg::EllipsoidModel> ellipsoid;
-
 
 int main(int argc, char** argv)
 {
@@ -71,6 +72,33 @@ int main(int argc, char** argv)
         "--max-tilt <degrees>",
         "Maximum camera tilt angle in degrees (0-90, default: 75)");
 
+    /**
+     * Even though postfx have more parameters,
+     * they shouldn't really be modified by the user
+     */
+    arguments.getApplicationUsage()->addCommandLineOption(
+        "--fxaa-search-steps <num_steps>",
+        "Amount of search steps performed by FXXA (default: 8)");
+    arguments.getApplicationUsage()->addCommandLineOption(
+        "--fxaa-blur-close <distance_px>",
+        "Close distance of the FXAA blur (default: 1px)");
+    arguments.getApplicationUsage()->addCommandLineOption(
+        "--fxaa-blur-far <distance_px>",
+        "Far distance of the FXAA blur (default 1.5px)");
+
+    arguments.getApplicationUsage()->addCommandLineOption(
+        "--dof-max-blur <value>",
+        "Maximum Depth Of Field blur intensity (default 0.03)");
+    arguments.getApplicationUsage()->addCommandLineOption(
+        "--dof-focus-range <value>",
+        "Focus range of the Depth Of Field (default 0.986)");
+
+    arguments.getApplicationUsage()->addCommandLineOption(
+        "--bloom-threshold <value>",
+        "Threshold of the Bloom effect (default 0.9)");
+    arguments.getApplicationUsage()->addCommandLineOption(
+        "--bloom-intensity <value>",
+        "Intensity of the Bloom effect (default 2.0)");
 
     ellipsoid = new osg::EllipsoidModel;
     viewer = new osgViewer::Viewer(arguments);
@@ -187,6 +215,18 @@ int main(int argc, char** argv)
         viewer->setCameraManipulator(keyswitchManipulator.get());
     }
 
+    osgMap::postfx::FXAA::Parameters fxaa_params;
+    osgMap::postfx::DOF::Parameters dof_params;
+    osgMap::postfx::Bloom::Parameters bloom_params;
+    {
+        arguments.read("--fxaa-search-steps", fxaa_params.number_search_steps);
+        arguments.read("--fxaa-blur-close", fxaa_params.blur_close_distance);
+        arguments.read("--fxaa-blur-far", fxaa_params.blur_far_distance);
+        arguments.read("--dof-max-blur", dof_params.max_blur);
+        arguments.read("--dof-focus-range", dof_params.focus_range);
+        arguments.read("--bloom-threshold", bloom_params.threshold);
+        arguments.read("--bloom-intensity", bloom_params.intensity);
+    }
 
     // add the state manipulator
     viewer->addEventHandler(new osgGA::StateSetManipulator(
@@ -214,6 +254,16 @@ int main(int argc, char** argv)
     // add the screen capture handler
     viewer->addEventHandler(new osgViewer::ScreenCaptureHandler);
 
+    // any option left unread are converted into errors to write out later.
+    arguments.reportRemainingOptionsAsUnrecognized();
+
+    // report any errors if they have occurred when parsing the program
+    // arguments.
+    if (arguments.errors())
+    {
+        arguments.writeErrorMessages(std::cout);
+        return 1;
+    }
 
     osg::ElapsedTime elapsedTime;
     if (printStats)
@@ -229,25 +279,49 @@ int main(int argc, char** argv)
     //////////////////////////////////// CREATE MAP SCENE ///////////////
     /////////////////////////////////////////////////////////////////////
 
-    osg::MatrixTransform* root = new osg::MatrixTransform;
     osg::Matrixd ltw;
     osg::BoundingBox wbb;
     osg::ref_ptr<osg::Node> land_model = process_landuse(ltw, wbb, file_path);
-    root->setMatrix(ltw);
-    root->addChild(land_model);
-
     osg::ref_ptr<osg::Node> water_model = process_water(ltw, file_path);
-    root->addChild(water_model);
-
     osg::ref_ptr<osg::Node> roads_model = process_roads(ltw, file_path);
-    root->addChild(roads_model);
-
     osg::ref_ptr<osg::Node> buildings_model = process_buildings(ltw, file_path);
-    root->addChild(buildings_model);
-
     osg::ref_ptr<osg::Node> labels_model = process_labels(ltw, file_path);
-    root->addChild(labels_model);
 
+    osg::ref_ptr<osg::Group> scene = new osg::Group;
+    scene->addChild(land_model);
+    scene->addChild(water_model);
+    scene->addChild(roads_model);
+    scene->addChild(buildings_model);
+    scene->addChild(labels_model);
+
+    /**************/
+    /** PPU SETUP */
+    /**************/
+    osg::ref_ptr<osgMap::postfx::PostProcessor> ppu =
+        new osgMap::postfx::PostProcessor(scene);
+    {
+        ppu->pushLayer<osgMap::postfx::FXAA>();
+        ppu->pushLayer<osgMap::postfx::DOF>();
+        ppu->pushLayer<osgMap::postfx::Bloom>();
+
+        static_cast<osgMap::postfx::FXAA*>(
+            ppu->getLayer<osgMap::postfx::FXAA>())
+            ->setParameters(fxaa_params);
+        static_cast<osgMap::postfx::DOF*>(ppu->getLayer<osgMap::postfx::DOF>())
+            ->setParameters(dof_params);
+        static_cast<osgMap::postfx::Bloom*>(
+            ppu->getLayer<osgMap::postfx::Bloom>())
+            ->setParameters(bloom_params);
+
+        viewer->addEventHandler(ppu->getResizeHandler());
+        viewer->addEventHandler(ppu->getActivationHandler<osgMap::postfx::FXAA>(
+            osgGA::GUIEventAdapter::KeySymbol::KEY_1));
+        viewer->addEventHandler(ppu->getActivationHandler<osgMap::postfx::DOF>(
+            osgGA::GUIEventAdapter::KeySymbol::KEY_2));
+        viewer->addEventHandler(
+            ppu->getActivationHandler<osgMap::postfx::Bloom>(
+                osgGA::GUIEventAdapter::KeySymbol::KEY_3));
+    }
 
     osg::Vec3d wtrans = wbb.center();
     wtrans.normalize();
@@ -260,30 +334,21 @@ int main(int argc, char** argv)
     viewer->getLight()->setDiffuse(osg::Vec4(0.8f, 0.8f, 0.8f, 1.0f));
     viewer->getLight()->setSpecular(osg::Vec4(0.5f, 0.5f, 0.5f, 1.0f));
 
+    osg::MatrixTransform* root = new osg::MatrixTransform;
+    root->setMatrix(ltw);
+    root->addChild(ppu);
+    root->addChild(ppu->getRenderPlaneProjection());
 
-    // any option left unread are converted into errors to write out later.
-    arguments.reportRemainingOptionsAsUnrecognized();
-
-    // report any errors if they have occurred when parsing the program
-    // arguments.
-    if (arguments.errors())
-    {
-        arguments.writeErrorMessages(std::cout);
-        return 1;
-    }
     // 1. Build your main scene
-    osg::Group* finalRoot = new osg::Group;
-    finalRoot->addChild(root); // your map scene
 
     // 2. Set scene BEFORE realize()
-    viewer->setSceneData(finalRoot);
-
+    viewer->setSceneData(root);
     viewer->setUpViewOnSingleScreen(0);
 
     // 3. Realize the viewer (creates the window + context)
     viewer->realize();
 
-    // 4. Now viewport exists → safe to read size
+    //// 4. Now viewport exists → safe to read size
     if (viewer->getCamera() == nullptr
         || viewer->getCamera()->getViewport() == nullptr)
     {
@@ -294,28 +359,36 @@ int main(int argc, char** argv)
     int w = viewer->getCamera()->getViewport()->width();
     int h = viewer->getCamera()->getViewport()->height();
 
-    // 5. Create HUD
+    /**
+     * less of a problem in windowed mode,
+     * but when running in fullscreen mode,
+     * don't forget to call resize on viewer
+     * mount!
+     */
+    ppu->resize(w, h);
+
+    //// 5. Create HUD
     osg::Camera* hud = createHUD("images/logo.png", 0.3f, w, h);
 
-    // Find the geode in the HUD (you might need to store it during creation)
+    //// Find the geode in the HUD (you might need to store it during creation)
     osg::Geode* hudGeode = dynamic_cast<osg::Geode*>(hud->getChild(0));
 
-    // Add resize handler
+    //// Add resize handler
     viewer->addEventHandler(
         new HUDResizeHandler(hud, hudGeode, "images/logo.png", 0.3f));
 
-    // 6. Add HUD AFTER realize() (totally allowed)
-    finalRoot->addChild(hud);
+    //// 6. Add HUD AFTER realize() (totally allowed)
+    root->addChild(hud);
 
-    // 7. Main loop
+    //// 7. Main loop
     bool wasMoving = false;
     const float FADE_SPEED = 2.0f;
 
-    // Initialize to visible
+    //// Initialize to visible
     g_currentAlpha = 1.0f;
     g_targetAlpha = 1.0f;
 
-    // Set initial alpha values
+    //// Set initial alpha values
     if (g_hudAlpha.valid())
     {
         g_hudAlpha->set(g_currentAlpha);
@@ -356,7 +429,7 @@ int main(int argc, char** argv)
                         std::ostringstream ss;
                         osg::Vec3d hit, normal;
                         std::string landInfo =
-                            getLandInfoAtIntersection(finalRoot, hit);
+                            getLandInfoAtIntersection(root, hit);
                         ss << "Land Data:\n" << landInfo;
                         hudSetText(ss.str());
                     }
