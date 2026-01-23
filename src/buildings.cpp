@@ -60,12 +60,12 @@ private:
 const char* vertSource = R"(
 #version 420 compatibility
 
-out vec2 v_texCoord;
+out vec3 v_texCoord;
 out vec3 v_normal;
 out vec3 v_ecp;
 
 void main() {
-    v_texCoord = gl_MultiTexCoord0.xy;
+    v_texCoord = gl_MultiTexCoord0.xyz;
     v_ecp = vec3(gl_ModelViewMatrix * gl_Vertex);
     v_normal = gl_Normal;
     gl_Position = gl_ModelViewProjectionMatrix * gl_Vertex;
@@ -77,12 +77,12 @@ const char* fragSource = R"(
 
 uniform sampler2D diffuseMap;
 
-in vec2 v_texCoord;
+in vec3 v_texCoord;
 in vec3 v_normal;
 in vec3 v_ecp;
 
 void main() {
-    vec4 texColor = texture2D(diffuseMap, v_texCoord);
+    vec4 texColor = texture2D(diffuseMap, v_texCoord.xy);
 
     vec3 N = normalize(gl_NormalMatrix * v_normal);
     vec3 L = normalize(gl_LightSource[0].position.xyz);
@@ -94,7 +94,7 @@ void main() {
 
     float bld_amb=0.5;
 
-    vec3 ambient = gl_LightSource[0].ambient.rgb * texColor.rgb;
+    vec3 ambient = gl_LightSource[0].ambient.rgb * texColor.rgb + vec3(v_texCoord.z);
     vec3 diffuse = gl_LightSource[0].diffuse.rgb * texColor.rgb * NdotL;
     vec3 specular = gl_LightSource[0].specular.rgb * pow(NdotH, 32.0);
 
@@ -166,7 +166,7 @@ void extrude_simple(osg::Geode* geode, osg::Geometry* baseGeom, float hMeters,
     float dx = std::max(1e-6f, maxX - minX);
     float dy = std::max(1e-6f, maxY - minY);
 
-    osg::ref_ptr<osg::Vec2Array> roofUV = new osg::Vec2Array;
+    osg::ref_ptr<osg::Vec3Array> roofUV = new osg::Vec3Array;
     roofUV->reserve(roofVerts->size());
 
     for (unsigned i = 0; i < roofVerts->size(); ++i)
@@ -174,7 +174,7 @@ void extrude_simple(osg::Geode* geode, osg::Geometry* baseGeom, float hMeters,
         const osg::Vec3& p = (*roofVerts)[i];
         float u = (p.x() - minX) / dx * roofTile;
         float vv = (p.y() - minY) / dy * roofTile;
-        roofUV->push_back(osg::Vec2(u, vv));
+        roofUV->push_back(osg::Vec3(u, vv, 0.f));
     }
 
     roof->setTexCoordArray(0, roofUV.get(), osg::Array::BIND_PER_VERTEX);
@@ -190,6 +190,10 @@ void extrude_simple(osg::Geode* geode, osg::Geometry* baseGeom, float hMeters,
     osg::ref_ptr<osg::Vec3Array> wallVerts = new osg::Vec3Array;
     wallVerts->reserve(v->size() * 6);
 
+    osg::ref_ptr<osg::Vec3Array> wallTC = new osg::Vec3Array;
+    wallTC->reserve(v->size() * 6);
+
+
     for (unsigned i = 0; i < v->size(); ++i)
     {
         osg::Vec3 b0 = (*v)[i];
@@ -198,6 +202,15 @@ void extrude_simple(osg::Geode* geode, osg::Geometry* baseGeom, float hMeters,
         t0.z() += hMeters;
         osg::Vec3 t1 = b1;
         t1.z() += hMeters;
+
+        float wrand = float(rand() % 256) / 256;
+
+        wallTC->push_back(osg::Vec3(1, 1, wrand * 0.1f));
+        wallTC->push_back(osg::Vec3(1, 0, wrand * 0.1f));
+        wallTC->push_back(osg::Vec3(0, 0, wrand * 0.1f));
+        wallTC->push_back(osg::Vec3(0, 1, wrand * 0.1f));
+        wallTC->push_back(osg::Vec3(1, 1, wrand * 0.1f));
+        wallTC->push_back(osg::Vec3(0, 0, wrand * 0.1f));
 
         wallVerts->push_back(t1);
         wallVerts->push_back(b1);
@@ -212,6 +225,8 @@ void extrude_simple(osg::Geode* geode, osg::Geometry* baseGeom, float hMeters,
 
     osg::ref_ptr<osg::Geometry> walls = new osg::Geometry;
     walls->setVertexArray(wallVerts.get());
+    walls->setTexCoordArray(0, wallTC.get());
+
     walls->addPrimitiveSet(
         new osg::DrawArrays(GL_TRIANGLES, 0, wallVerts->size()));
 
