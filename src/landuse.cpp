@@ -68,8 +68,10 @@ void apply_texture(osg::StateSet* ss, const std::string& path)
         texture->setWrap(osg::Texture::WRAP_S, osg::Texture::REPEAT);
         texture->setWrap(osg::Texture::WRAP_T, osg::Texture::REPEAT);
 
-        texture->setFilter(osg::Texture::MIN_FILTER, osg::Texture::LINEAR);
+        texture->setFilter(osg::Texture::MIN_FILTER,
+                           osg::Texture::LINEAR_MIPMAP_LINEAR);
         texture->setFilter(osg::Texture::MAG_FILTER, osg::Texture::LINEAR);
+        texture->setUseHardwareMipMapGeneration(true);
 
         ss->setTextureAttributeAndModes(0, texture,
                                         osg::StateAttribute::ON
@@ -87,13 +89,13 @@ void apply_texture(osg::StateSet* ss, const std::string& path)
 }
 
 // Shader dla betonu (statyczny)
-void setup_standard_shader(osg::StateSet* ss, const std::string& data_path)
+void setup_standard_shader(osg::StateSet* ss)
 {
     if (!ss) return;
     osg::ref_ptr<osg::Shader> vert = osgDB::readRefShaderFile(
-        osg::Shader::VERTEX, data_path + "/standard.vert");
+        osg::Shader::VERTEX, "shaders/standard.vert");
     osg::ref_ptr<osg::Shader> frag = osgDB::readRefShaderFile(
-        osg::Shader::FRAGMENT, data_path + "/standard.frag");
+        osg::Shader::FRAGMENT, "shaders/standard.frag");
     if (vert.valid() && frag.valid())
     {
         osg::ref_ptr<osg::Program> program = new osg::Program;
@@ -106,13 +108,13 @@ void setup_standard_shader(osg::StateSet* ss, const std::string& data_path)
 }
 
 // Shader dla roslinnosci (falowanie)
-void setup_wind_shader(osg::StateSet* ss, const std::string& data_path)
+void setup_wind_shader(osg::StateSet* ss)
 {
     if (!ss) return;
     osg::ref_ptr<osg::Shader> vert =
-        osgDB::readRefShaderFile(osg::Shader::VERTEX, data_path + "/wind.vert");
+        osgDB::readRefShaderFile(osg::Shader::VERTEX, "shaders/wind.vert");
     osg::ref_ptr<osg::Shader> frag = osgDB::readRefShaderFile(
-        osg::Shader::FRAGMENT, data_path + "/wind.frag");
+        osg::Shader::FRAGMENT, "shaders/wind.frag");
     if (vert.valid() && frag.valid())
     {
         osg::ref_ptr<osg::Program> program = new osg::Program;
@@ -125,15 +127,15 @@ void setup_wind_shader(osg::StateSet* ss, const std::string& data_path)
 }
 
 // Shader dla cmentarza (Parallax 3D)
-void setup_parallax_shader(osg::StateSet* ss, const std::string& data_path)
+void setup_parallax_shader(osg::StateSet* ss)
 {
     if (!ss) return;
     osg::ref_ptr<osg::Shader> vert = osgDB::readRefShaderFile(
-        osg::Shader::VERTEX, data_path + "/parallax.vert");
+        osg::Shader::VERTEX, "shaders/parallax.vert");
     osg::ref_ptr<osg::Shader> frag = osgDB::readRefShaderFile(
-        osg::Shader::FRAGMENT, data_path + "/parallax.frag");
+        osg::Shader::FRAGMENT, "shaders/parallax.frag");
     osg::ref_ptr<osg::Image> h_img =
-        osgDB::readRefImageFile(data_path + "/images/cemetery_height.dds");
+        osgDB::readRefImageFile("images/cemetery_height.dds");
 
     if (vert.valid() && frag.valid() && h_img.valid())
     {
@@ -146,8 +148,10 @@ void setup_parallax_shader(osg::StateSet* ss, const std::string& data_path)
         osg::ref_ptr<osg::Texture2D> h_tex = new osg::Texture2D(h_img);
         h_tex->setWrap(osg::Texture::WRAP_S, osg::Texture::REPEAT);
         h_tex->setWrap(osg::Texture::WRAP_T, osg::Texture::REPEAT);
-        h_tex->setFilter(osg::Texture::MIN_FILTER, osg::Texture::LINEAR);
+        h_tex->setFilter(osg::Texture::MIN_FILTER,
+                         osg::Texture::LINEAR_MIPMAP_LINEAR);
         h_tex->setFilter(osg::Texture::MAG_FILTER, osg::Texture::LINEAR);
+        h_tex->setUseHardwareMipMapGeneration(true);
 
         ss->setTextureAttributeAndModes(
             1, h_tex, osg::StateAttribute::ON | osg::StateAttribute::OVERRIDE);
@@ -260,104 +264,104 @@ osg::Node* process_landuse(osg::Matrixd& ltw, osg::BoundingBox& wbb,
         // === WARSTWA 0-3: TERENY MIEJSKIE (na spodzie) ===
         if (name.find("residential") != std::string::npos)
         {
-            apply_texture(ss, file_path + "/images/concrete.dds");
-            setup_standard_shader(ss, file_path);
+            apply_texture(ss, "images/concrete.dds");
+            setup_standard_shader(ss);
         }
         else if (name.find("industrial") != std::string::npos)
         {
-            apply_texture(ss, file_path + "/images/concrete.dds");
-            setup_standard_shader(ss, file_path);
+            apply_texture(ss, "images/concrete.dds");
+            setup_standard_shader(ss);
         }
         else if (name.find("commercial") != std::string::npos)
         {
-            apply_texture(ss, file_path + "/images/concrete.dds");
-            setup_standard_shader(ss, file_path);
+            apply_texture(ss, "images/concrete.dds");
+            setup_standard_shader(ss);
         }
         else if (name.find("retail") != std::string::npos)
         {
-            apply_texture(ss, file_path + "/images/concrete.dds");
-            setup_standard_shader(ss, file_path);
+            apply_texture(ss, "images/concrete.dds");
+            setup_standard_shader(ss);
         }
         // === WARSTWA 4-6: ROLNICTWO, WOJSKO, KAMIENIOŁOMY ===
         else if (name.find("farmland") != std::string::npos)
         {
-            apply_texture(ss, file_path + "/images/farmland.dds");
-            setup_standard_shader(ss, file_path);
+            apply_texture(ss, "images/farmland.dds");
+            setup_standard_shader(ss);
         }
         else if (name.find("farmyard") != std::string::npos)
         {
-            apply_texture(ss, file_path + "/images/farmland.dds");
-            setup_standard_shader(ss, file_path);
+            apply_texture(ss, "images/farmland.dds");
+            setup_standard_shader(ss);
         }
         else if (name.find("quarry") != std::string::npos)
         {
-            apply_texture(ss, file_path + "/images/rock.dds");
-            setup_standard_shader(ss, file_path);
+            apply_texture(ss, "images/rock.dds");
+            setup_standard_shader(ss);
         }
         else if (name.find("military") != std::string::npos)
         {
-            apply_texture(ss, file_path + "/images/military.dds");
-            setup_standard_shader(ss, file_path);
+            apply_texture(ss, "images/military.dds");
+            setup_standard_shader(ss);
         }
         // === WARSTWA 8-10: TRAWA, ŁĄKI, ZAROŚLA ===
         else if (name.find("grass") != std::string::npos)
         {
-            apply_texture(ss, file_path + "/images/grass.dds");
-            setup_wind_shader(ss, file_path);
+            apply_texture(ss, "images/grass.dds");
+            setup_wind_shader(ss);
         }
         else if (name.find("meadow") != std::string::npos)
         {
-            apply_texture(ss, file_path + "/images/grass.dds");
-            setup_wind_shader(ss, file_path);
+            apply_texture(ss, "images/grass.dds");
+            setup_wind_shader(ss);
         }
         else if (name.find("scrub") != std::string::npos)
         {
-            apply_texture(ss, file_path + "/images/scrub.dds");
-            setup_wind_shader(ss, file_path);
+            apply_texture(ss, "images/scrub.dds");
+            setup_wind_shader(ss);
         }
         else if (name.find("heath") != std::string::npos)
         {
-            apply_texture(ss, file_path + "/images/scrub.dds");
-            setup_wind_shader(ss, file_path);
+            apply_texture(ss, "images/scrub.dds");
+            setup_wind_shader(ss);
         }
         // === WARSTWA 12: LASY ===
         else if (name.find("forest") != std::string::npos)
         {
-            apply_texture(ss, file_path + "/images/forest.dds");
-            setup_wind_shader(ss, file_path);
+            apply_texture(ss, "images/forest.dds");
+            setup_wind_shader(ss);
         }
         // === WARSTWA 13-15: SADY, DZIAŁKI, REZERWATY ===
         else if (name.find("orchard") != std::string::npos)
         {
-            apply_texture(ss, file_path + "/images/orchard.dds");
-            setup_wind_shader(ss, file_path);
+            apply_texture(ss, "images/orchard.dds");
+            setup_wind_shader(ss);
         }
         else if (name.find("nature_reserve") != std::string::npos)
         {
-            apply_texture(ss, file_path + "/images/orchard.dds");
-            setup_wind_shader(ss, file_path);
+            apply_texture(ss, "images/orchard.dds");
+            setup_wind_shader(ss);
         }
         else if (name.find("allotments") != std::string::npos)
         {
-            apply_texture(ss, file_path + "/images/allotments.dds");
-            setup_wind_shader(ss, file_path);
+            apply_texture(ss, "images/allotments.dds");
+            setup_wind_shader(ss);
         }
         // === WARSTWA 16-17: PARKI, TERENY REKREACYJNE ===
         else if (name.find("park") != std::string::npos)
         {
-            apply_texture(ss, file_path + "/images/grass.dds");
-            setup_wind_shader(ss, file_path);
+            apply_texture(ss, "images/grass.dds");
+            setup_wind_shader(ss);
         }
         else if (name.find("recreation_ground") != std::string::npos)
         {
-            apply_texture(ss, file_path + "/images/sport_green.dds");
-            setup_wind_shader(ss, file_path);
+            apply_texture(ss, "images/sport_green.dds");
+            setup_wind_shader(ss);
         }
         // === WARSTWA 18: CMENTARZ (najwyżej - parallax) ===
         else if (name.find("cemetery") != std::string::npos)
         {
-            apply_texture(ss, file_path + "/images/cemetery.dds");
-            setup_parallax_shader(ss, file_path);
+            apply_texture(ss, "images/cemetery.dds");
+            setup_parallax_shader(ss);
         }
         for (size_t i = 0; i < nodes.size(); ++i)
         {
