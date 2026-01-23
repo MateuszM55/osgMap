@@ -92,8 +92,10 @@ void main() {
     vec3 H = normalize(L + V);
     float NdotH = max(dot(N, H), 0.0);
 
-    vec3 ambient  = gl_LightSource[0].ambient.rgb  * texColor.rgb * 0.3;
-    vec3 diffuse  = gl_LightSource[0].diffuse.rgb  * texColor.rgb * NdotL;
+    float bld_amb=0.5;
+
+    vec3 ambient = gl_LightSource[0].ambient.rgb * texColor.rgb;
+    vec3 diffuse = gl_LightSource[0].diffuse.rgb * texColor.rgb * NdotL;
     vec3 specular = gl_LightSource[0].specular.rgb * pow(NdotH, 32.0);
 
     gl_FragColor = vec4(ambient + diffuse + specular, texColor.a);
@@ -231,6 +233,7 @@ void extrude_simple(osg::Geode* geode, osg::Geometry* baseGeom, float hMeters,
     // -----------------------
     // StateSety
     // -----------------------
+    walls->setStateSet(g_roofTextures.back());
 
     if (roofIdx >= 0 && roofIdx < (int)g_roofTextures.size()
         && g_roofTextures[roofIdx].valid())
@@ -316,7 +319,7 @@ void parse_meta_data(osg::Node* model)
             uint32_t hc = (uint32_t)std::lround(h * 100.0f);
             seed ^= hc + 0x9e3779b9u + (seed << 6) + (seed >> 2);
 
-            roofIdx = (int)(seed % (uint32_t)g_roofTextures.size());
+            roofIdx = (int)(seed % (uint32_t)g_roofTextures.size()-1);
         }
 
         extrude_simple(geode, geoms[i].get(), h, roofIdx, 8.0f);
@@ -403,6 +406,29 @@ osg::Node* process_buildings(osg::Matrixd& ltw, const std::string& file_path)
 
     if (g_roofTextures.empty())
         std::cout << "[ROOF] WARN: brak zaladowanych tekstur dachow (dds)\n";
+
+
+    // one more default material to handle walls with the same shader as roof
+    {
+        osg::Image* image = new osg::Image;
+        image->allocateImage(1, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE);
+        *(osg::Vec4ub*)image->data() = osg::Vec4ub(0xFF, 0xFF, 0xFF, 0xFF);
+        osg::StateSet* pss = new osg::StateSet;
+        osg::Texture2D* fakeTex = new osg::Texture2D(image);
+        fakeTex->setWrap(osg::Texture2D::WRAP_S, osg::Texture2D::REPEAT);
+        fakeTex->setWrap(osg::Texture2D::WRAP_T, osg::Texture2D::REPEAT);
+        fakeTex->setFilter(osg::Texture2D::MIN_FILTER, osg::Texture2D::NEAREST);
+        fakeTex->setFilter(osg::Texture2D::MAG_FILTER, osg::Texture2D::NEAREST);
+        pss->setTextureAttribute(0, fakeTex, osg::StateAttribute::ON);
+        osg::Program* program = new osg::Program;
+        program->addShader(new osg::Shader(osg::Shader::VERTEX, vertSource));
+        program->addShader(new osg::Shader(osg::Shader::FRAGMENT, fragSource));
+        pss->setAttribute(program);
+        pss->addUniform(new osg::Uniform("diffuseMap", 0));
+        pss->setMode(GL_CULL_FACE, osg::StateAttribute::ON);
+        g_roofTextures.push_back(pss);
+    }
+
 
     // 5) Extrusion
     std::cout << "[BUILDINGS] Extruding buildings...\n";
