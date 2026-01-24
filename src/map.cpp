@@ -484,6 +484,7 @@ int main(int argc, char** argv)
         viewer->getLight()->setDiffuse(osg::Vec4(0.8f, 0.8f, 0.8f, 1.0f));
         viewer->getLight()->setSpecular(osg::Vec4(0.5f, 0.5f, 0.5f, 1.0f));
 
+        root->setMatrix(ltw);
         root->addChild(ppu);
         root->addChild(ppu->getRenderPlaneProjection());
     };
