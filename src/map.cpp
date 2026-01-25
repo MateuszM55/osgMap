@@ -292,10 +292,8 @@ int main(int argc, char** argv)
     osgMap::postfx::DOF::Parameters dof_params;
     osgMap::postfx::Bloom::Parameters bloom_params;
     {
-        arguments.read("--fxaa-search-steps",
-            fxaa_params.number_search_steps);
-        arguments.read("--fxaa-blur-close",
-            fxaa_params.blur_close_distance);
+        arguments.read("--fxaa-search-steps", fxaa_params.number_search_steps);
+        arguments.read("--fxaa-blur-close", fxaa_params.blur_close_distance);
         arguments.read("--fxaa-blur-far", fxaa_params.blur_far_distance);
         arguments.read("--dof-max-blur", dof_params.max_blur);
         arguments.read("--dof-focus-range", dof_params.focus_range);
