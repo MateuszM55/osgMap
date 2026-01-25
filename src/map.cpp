@@ -401,7 +401,6 @@ int main(int argc, char** argv)
                             osg::ArgumentParser& arguments,
                             osg::ref_ptr<osgMap::postfx::PostProcessor>& ppu,
                             const std::string& file_path) {
-
         osgMap::postfx::FXAA::Parameters fxaa_params;
         osgMap::postfx::DOF::Parameters dof_params;
         osgMap::postfx::Bloom::Parameters bloom_params;
@@ -446,17 +445,20 @@ int main(int argc, char** argv)
             static_cast<osgMap::postfx::FXAA*>(
                 ppu->getLayer<osgMap::postfx::FXAA>())
                 ->setParameters(fxaa_params);
-            static_cast<osgMap::postfx::DOF*>(ppu->getLayer<osgMap::postfx::DOF>())
+            static_cast<osgMap::postfx::DOF*>(
+                ppu->getLayer<osgMap::postfx::DOF>())
                 ->setParameters(dof_params);
             static_cast<osgMap::postfx::Bloom*>(
                 ppu->getLayer<osgMap::postfx::Bloom>())
                 ->setParameters(bloom_params);
 
             viewer->addEventHandler(ppu->getResizeHandler());
-            viewer->addEventHandler(ppu->getActivationHandler<osgMap::postfx::FXAA>(
-                osgGA::GUIEventAdapter::KeySymbol::KEY_1));
-            viewer->addEventHandler(ppu->getActivationHandler<osgMap::postfx::DOF>(
-                osgGA::GUIEventAdapter::KeySymbol::KEY_2));
+            viewer->addEventHandler(
+                ppu->getActivationHandler<osgMap::postfx::FXAA>(
+                    osgGA::GUIEventAdapter::KeySymbol::KEY_1));
+            viewer->addEventHandler(
+                ppu->getActivationHandler<osgMap::postfx::DOF>(
+                    osgGA::GUIEventAdapter::KeySymbol::KEY_2));
             viewer->addEventHandler(
                 ppu->getActivationHandler<osgMap::postfx::Bloom>(
                     osgGA::GUIEventAdapter::KeySymbol::KEY_3));
@@ -468,11 +470,11 @@ int main(int argc, char** argv)
         {
             osg::Vec3d toVec =
                 osg::Matrix::rotate(osg::DegreesToRadians(-65.f), osg::Y_AXIS)
-                .preMult(osg::Z_AXIS);
+                    .preMult(osg::Z_AXIS);
             osg::Vec3d r = wtrans ^ toVec;
             r.normalize();
-            wtrans =
-                osg::Matrix::rotate(osg::DegreesToRadians(65.f), r).preMult(wtrans);
+            wtrans = osg::Matrix::rotate(osg::DegreesToRadians(65.f), r)
+                         .preMult(wtrans);
         }
 
         viewer->setLightingMode(osg::View::LightingMode::SKY_LIGHT);
