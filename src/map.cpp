@@ -288,6 +288,21 @@ int main(int argc, char** argv)
         }
     }
 
+    osgMap::postfx::FXAA::Parameters fxaa_params;
+    osgMap::postfx::DOF::Parameters dof_params;
+    osgMap::postfx::Bloom::Parameters bloom_params;
+    {
+        arguments.read("--fxaa-search-steps",
+            fxaa_params.number_search_steps);
+        arguments.read("--fxaa-blur-close",
+            fxaa_params.blur_close_distance);
+        arguments.read("--fxaa-blur-far", fxaa_params.blur_far_distance);
+        arguments.read("--dof-max-blur", dof_params.max_blur);
+        arguments.read("--dof-focus-range", dof_params.focus_range);
+        arguments.read("--bloom-threshold", bloom_params.threshold);
+        arguments.read("--bloom-intensity", bloom_params.intensity);
+    }
+
     // set up the camera manipulators.
     {
         // Read max tilt parameter from command line
@@ -396,26 +411,10 @@ int main(int argc, char** argv)
 
 
     osg::ref_ptr<osg::MatrixTransform> root = new osg::MatrixTransform;
-    osg::ref_ptr<osgMap::postfx::PostProcessor> ppu = nullptr;
+    osg::ref_ptr<osg::Group> scene = new osg::Group;
     auto prepare_scene = [](osg::ref_ptr<osg::MatrixTransform>& root,
-                            osg::ArgumentParser& arguments,
-                            osg::ref_ptr<osgMap::postfx::PostProcessor>& ppu,
+                            osg::ref_ptr<osg::Group>& scene,
                             const std::string& file_path) {
-        osgMap::postfx::FXAA::Parameters fxaa_params;
-        osgMap::postfx::DOF::Parameters dof_params;
-        osgMap::postfx::Bloom::Parameters bloom_params;
-        {
-            arguments.read("--fxaa-search-steps",
-                           fxaa_params.number_search_steps);
-            arguments.read("--fxaa-blur-close",
-                           fxaa_params.blur_close_distance);
-            arguments.read("--fxaa-blur-far", fxaa_params.blur_far_distance);
-            arguments.read("--dof-max-blur", dof_params.max_blur);
-            arguments.read("--dof-focus-range", dof_params.focus_range);
-            arguments.read("--bloom-threshold", bloom_params.threshold);
-            arguments.read("--bloom-intensity", bloom_params.intensity);
-        }
-
         osg::Matrixd ltw;
         osg::BoundingBox wbb;
         osg::ref_ptr<osg::Node> land_model =
@@ -426,43 +425,11 @@ int main(int argc, char** argv)
             process_buildings(ltw, file_path);
         osg::ref_ptr<osg::Node> labels_model = process_labels(ltw, file_path);
 
-        osg::ref_ptr<osg::Group> scene = new osg::Group;
         scene->addChild(land_model);
         scene->addChild(water_model);
         scene->addChild(roads_model);
         scene->addChild(buildings_model);
         root->addChild(labels_model);
-
-        /**************/
-        /** PPU SETUP */
-        /**************/
-        ppu = new osgMap::postfx::PostProcessor(scene);
-        {
-            ppu->pushLayer<osgMap::postfx::FXAA>();
-            ppu->pushLayer<osgMap::postfx::DOF>();
-            ppu->pushLayer<osgMap::postfx::Bloom>();
-
-            static_cast<osgMap::postfx::FXAA*>(
-                ppu->getLayer<osgMap::postfx::FXAA>())
-                ->setParameters(fxaa_params);
-            static_cast<osgMap::postfx::DOF*>(
-                ppu->getLayer<osgMap::postfx::DOF>())
-                ->setParameters(dof_params);
-            static_cast<osgMap::postfx::Bloom*>(
-                ppu->getLayer<osgMap::postfx::Bloom>())
-                ->setParameters(bloom_params);
-
-            viewer->addEventHandler(ppu->getResizeHandler());
-            viewer->addEventHandler(
-                ppu->getActivationHandler<osgMap::postfx::FXAA>(
-                    osgGA::GUIEventAdapter::KeySymbol::KEY_1));
-            viewer->addEventHandler(
-                ppu->getActivationHandler<osgMap::postfx::DOF>(
-                    osgGA::GUIEventAdapter::KeySymbol::KEY_2));
-            viewer->addEventHandler(
-                ppu->getActivationHandler<osgMap::postfx::Bloom>(
-                    osgGA::GUIEventAdapter::KeySymbol::KEY_3));
-        }
 
         osg::Vec3d wtrans = wbb.center();
         wtrans.normalize();
@@ -473,7 +440,7 @@ int main(int argc, char** argv)
                     .preMult(osg::Z_AXIS);
             osg::Vec3d r = wtrans ^ toVec;
             r.normalize();
-            wtrans = osg::Matrix::rotate(osg::DegreesToRadians(65.f), r)
+            wtrans = osg::Matrix::rotate(osg::DegreesToRadians(75.f), r)
                          .preMult(wtrans);
         }
 
@@ -487,8 +454,6 @@ int main(int argc, char** argv)
         viewer->getLight()->setSpecular(osg::Vec4(0.5f, 0.5f, 0.5f, 1.0f));
 
         root->setMatrix(ltw);
-        root->addChild(ppu);
-        root->addChild(ppu->getRenderPlaneProjection());
     };
 
     viewer->setSceneData(create_loading_screen());
@@ -497,7 +462,7 @@ int main(int argc, char** argv)
 
     std::future<void> loading =
         std::async(std::launch::async, prepare_scene, std::ref(root),
-                   std::ref(arguments), std::ref(ppu), file_path);
+                   std::ref(scene), file_path);
 
     // viewport exists → safe to read size
     int w = viewer->getCamera()->getViewport()->width();
@@ -518,6 +483,40 @@ int main(int argc, char** argv)
             {
                 loading.get();
 
+                /**************/
+                /** PPU SETUP */
+                /**************/
+                osg::ref_ptr<osgMap::postfx::PostProcessor> ppu =
+                    new osgMap::postfx::PostProcessor(scene);
+                {
+                    ppu->pushLayer<osgMap::postfx::FXAA>();
+                    ppu->pushLayer<osgMap::postfx::DOF>();
+                    ppu->pushLayer<osgMap::postfx::Bloom>();
+
+                    static_cast<osgMap::postfx::FXAA*>(
+                        ppu->getLayer<osgMap::postfx::FXAA>())
+                        ->setParameters(fxaa_params);
+                    static_cast<osgMap::postfx::DOF*>(
+                        ppu->getLayer<osgMap::postfx::DOF>())
+                        ->setParameters(dof_params);
+                    static_cast<osgMap::postfx::Bloom*>(
+                        ppu->getLayer<osgMap::postfx::Bloom>())
+                        ->setParameters(bloom_params);
+
+                    viewer->addEventHandler(ppu->getResizeHandler());
+                    viewer->addEventHandler(
+                        ppu->getActivationHandler<osgMap::postfx::FXAA>(
+                            osgGA::GUIEventAdapter::KeySymbol::KEY_1));
+                    viewer->addEventHandler(
+                        ppu->getActivationHandler<osgMap::postfx::DOF>(
+                            osgGA::GUIEventAdapter::KeySymbol::KEY_2));
+                    viewer->addEventHandler(
+                        ppu->getActivationHandler<osgMap::postfx::Bloom>(
+                            osgGA::GUIEventAdapter::KeySymbol::KEY_3));
+                }
+
+                root->addChild(ppu);
+                root->addChild(ppu->getRenderPlaneProjection());
                 ppu->resize(w, h);
 
                 // Create HUD
