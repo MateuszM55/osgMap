@@ -27,10 +27,22 @@
 #include <fstream>
 #include <cstring>
 #include <map>
+#include <cmath>
 
 #include "common.h"
 
 using namespace osg;
+
+const float LABEL_TEXT_SIZE = 18.0f;
+const float ICON_SIZE_WORLD = 8.0f;
+const float MAX_VIEW_DISTANCE = 1500.0f;
+
+
+const float CHAR_WIDTH_EST = 8.0f;
+const float ICON_SCREEN_W = 24.0f;
+const float ICON_SCREEN_H = 24.0f;
+const float PADDING = 2.0f;
+
 
 struct LabelData
 {
@@ -176,19 +188,30 @@ public:
 };
 
 class SortAndCullLabelsCallback : public osg::NodeCallback {
+    struct ScreenBox
+    {
+        double minX, maxX;
+        double minY, maxY;
+
+        bool overlaps(const ScreenBox& other) const
+        {
+            if (maxX < other.minX) return false;
+            if (minX > other.maxX) return false;
+            if (maxY < other.minY) return false;
+            if (minY > other.maxY) return false;
+            return true;
+        }
+    };
+
     struct LabelItem
     {
-        osg::Billboard* node;
-        osg::Vec3 screenPos;
+        osg::MatrixTransform* node;
+        ScreenBox box;
         double distToCam;
     };
 
-    double _minDistSq;
-
 public:
-    SortAndCullLabelsCallback(double pixelDist = 45.0)
-        : _minDistSq(pixelDist * pixelDist)
-    {}
+    SortAndCullLabelsCallback() {}
 
     virtual void operator()(osg::Node* node, osg::NodeVisitor* nv)
     {
@@ -200,52 +223,57 @@ public:
         }
 
         osg::Group* group = node->asGroup();
-        if (!group)
-        {
-            traverse(node, nv);
-            return;
-        }
+        if (!group) return;
 
         osg::Camera* camera = cv->getCurrentCamera();
-        if (!camera)
-        {
-            traverse(node, nv);
-            return;
-        }
+        if (!camera) return;
 
         osg::Matrixd viewMat = *cv->getModelViewMatrix();
         osg::Matrixd projMat = *cv->getProjectionMatrix();
         const osg::Viewport* viewport = cv->getViewport();
+        if (!viewport) return;
 
-        if (!viewport)
-        {
-            traverse(node, nv);
-            return;
-        }
-
-        osg::Matrixd viewProjMat = viewMat * projMat;
-        osg::Matrixd windowMat = viewport->computeWindowMatrix();
-        osg::Matrixd mvpw = viewProjMat * windowMat;
+        osg::Matrixd mvpw = viewMat * projMat * viewport->computeWindowMatrix();
 
         std::vector<LabelItem> visibleLabels;
         visibleLabels.reserve(group->getNumChildren());
 
         for (unsigned int i = 0; i < group->getNumChildren(); ++i)
         {
-            osg::Billboard* bb =
-                dynamic_cast<osg::Billboard*>(group->getChild(i));
-            if (!bb) continue;
-            if (bb->getNumDrawables() == 0) continue;
+            osg::MatrixTransform* mt =
+                dynamic_cast<osg::MatrixTransform*>(group->getChild(i));
+            if (!mt) continue;
 
-            osg::Vec3 center = bb->getPosition(0);
+            osg::Vec3 centerWorld = mt->getMatrix().getTrans();
+            osg::Vec3 eyePos = centerWorld * viewMat;
 
-            osg::Vec3 eyePos = center * viewMat;
+            if (eyePos.z() > 0) continue;
 
             double dist = eyePos.length();
+            if (dist > MAX_VIEW_DISTANCE) continue;
 
-            osg::Vec3 screenPos = center * mvpw;
+            osg::Vec3 screenPos = centerWorld * mvpw;
 
-            visibleLabels.push_back({ bb, screenPos, dist });
+            if (screenPos.x() < 0 || screenPos.x() > viewport->width()
+                || screenPos.y() < 0 || screenPos.y() > viewport->height())
+            {
+                continue;
+            }
+
+            std::string labelName = mt->getName();
+
+            double widthPixels = (labelName.length() * CHAR_WIDTH_EST);
+            if (widthPixels < ICON_SCREEN_W) widthPixels = ICON_SCREEN_W;
+
+            double heightPixels = LABEL_TEXT_SIZE + ICON_SCREEN_H;
+
+            ScreenBox box;
+            box.minX = screenPos.x() - (widthPixels / 2.0) - PADDING;
+            box.maxX = screenPos.x() + (widthPixels / 2.0) + PADDING;
+            box.minY = screenPos.y() - (ICON_SCREEN_H / 2.0) - PADDING;
+            box.maxY = screenPos.y() + heightPixels + PADDING;
+
+            visibleLabels.push_back({ mt, box, dist });
         }
 
         std::sort(visibleLabels.begin(), visibleLabels.end(),
@@ -253,17 +281,15 @@ public:
                       return a.distToCam < b.distToCam;
                   });
 
-        std::vector<osg::Vec3> acceptedPositions;
+        std::vector<ScreenBox> acceptedBoxes;
+        acceptedBoxes.reserve(visibleLabels.size());
 
         for (auto& item : visibleLabels)
         {
             bool overlaps = false;
-            for (const auto& acceptedPos : acceptedPositions)
+            for (const auto& existingBox : acceptedBoxes)
             {
-                double dx = item.screenPos.x() - acceptedPos.x();
-                double dy = item.screenPos.y() - acceptedPos.y();
-
-                if ((dx * dx + dy * dy) < _minDistSq)
+                if (item.box.overlaps(existingBox))
                 {
                     overlaps = true;
                     break;
@@ -272,13 +298,12 @@ public:
 
             if (!overlaps)
             {
-                acceptedPositions.push_back(item.screenPos);
+                acceptedBoxes.push_back(item.box);
                 item.node->accept(*nv);
             }
         }
     }
 };
-
 
 static std::string determineIconTexture(const std::string& type,
                                         const std::string& subtype)
@@ -345,27 +370,37 @@ getSharedStateSet(const std::string& filename,
     osg::BlendFunc* bf =
         new osg::BlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     ss->setAttributeAndModes(bf, osg::StateAttribute::ON);
+
     ss->setRenderingHint(osg::StateSet::TRANSPARENT_BIN);
     ss->setMode(GL_LIGHTING, osg::StateAttribute::OFF);
+
+    osg::Depth* depth = new osg::Depth;
+    depth->setWriteMask(false);
+    depth->setFunction(osg::Depth::LESS);
+    ss->setAttributeAndModes(depth, osg::StateAttribute::ON);
 
     cache[filename] = ss;
     return ss.get();
 }
 
-static osg::Billboard* createLabelNode(const LabelData& data,
-                                       osg::StateSet* sharedIconStateSet)
+static osg::MatrixTransform* createLabelNode(const LabelData& data,
+                                             osg::StateSet* sharedIconStateSet)
 {
-    osg::Billboard* bb = new osg::Billboard();
-    bb->setMode(osg::Billboard::POINT_ROT_EYE);
+    osg::MatrixTransform* mt = new osg::MatrixTransform;
+    mt->setMatrix(osg::Matrix::translate(data.position));
+    mt->setName(data.name);
 
     bool hasIcon = (sharedIconStateSet != nullptr);
+    float offsetZ = 0.0f;
 
     if (hasIcon)
     {
-        osg::Geometry* iconGeom = new osg::Geometry();
+        osg::Billboard* bb = new osg::Billboard();
+        bb->setMode(osg::Billboard::POINT_ROT_EYE);
 
-        float w = 6.0f;
-        float h = 6.0f;
+        osg::Geometry* iconGeom = new osg::Geometry();
+        float w = ICON_SIZE_WORLD / 2.0f;
+        float h = ICON_SIZE_WORLD / 2.0f;
 
         osg::Vec3Array* verts = new osg::Vec3Array;
         verts->push_back(osg::Vec3(-w, 0, -h));
@@ -389,12 +424,18 @@ static osg::Billboard* createLabelNode(const LabelData& data,
             new osg::DrawArrays(osg::PrimitiveSet::QUADS, 0, 4));
 
         iconGeom->setStateSet(sharedIconStateSet);
+        bb->addDrawable(iconGeom, osg::Vec3(0, 0, 0));
+        bb->getOrCreateStateSet()->setMode(GL_LIGHTING,
+                                           osg::StateAttribute::OFF
+                                               | osg::StateAttribute::OVERRIDE);
 
-        bb->addDrawable(iconGeom, data.position);
+        mt->addChild(bb);
+        offsetZ = h * 1.5f;
     }
 
     if (!data.name.empty())
     {
+        osg::Geode* textGeode = new osg::Geode();
         osgText::Text* text = new osgText::Text;
 
         static osg::ref_ptr<osgText::Font> sharedFont =
@@ -402,17 +443,18 @@ static osg::Billboard* createLabelNode(const LabelData& data,
         if (!sharedFont) sharedFont = osgText::readRefFontFile("arial.ttf");
 
         text->setFont(sharedFont);
-
         text->setText(
             osgText::String(data.name, osgText::String::ENCODING_UTF8));
 
+        text->setCharacterSizeMode(osgText::Text::SCREEN_COORDS);
+        text->setCharacterSize(LABEL_TEXT_SIZE);
+
         text->setAlignment(osgText::Text::CENTER_BOTTOM);
-        text->setAxisAlignment(osgText::Text::XZ_PLANE);
+        text->setAxisAlignment(osgText::Text::XY_PLANE);
 
         text->setBackdropType(osgText::Text::OUTLINE);
 
-        float fontSize = 3.5f;
-        osg::Vec4 textColor(1.0f, 1.0f, 1.0f, 1.0f); 
+        osg::Vec4 textColor(1.0f, 1.0f, 1.0f, 1.0f);
         osg::Vec4 outlineColor(0.0f, 0.0f, 0.0f, 1.0f);
 
         auto checkType = [&](const std::string& keyword) {
@@ -421,40 +463,28 @@ static osg::Billboard* createLabelNode(const LabelData& data,
         };
 
         if (checkType("station") || checkType("subway") || checkType("tram"))
-        {
-            fontSize = 5.0f;
             textColor.set(1.0f, 0.9f, 0.2f, 1.0f);
-        }
         else if (checkType("university") || checkType("school")
                  || checkType("college"))
-        {
-            fontSize = 4.2f;
             textColor.set(0.6f, 0.8f, 1.0f, 1.0f);
-        }
         else if (checkType("townhall") || checkType("government"))
-        {
-            fontSize = 4.5f;
             textColor.set(1.0f, 0.6f, 0.6f, 1.0f);
-        }
         else if (checkType("pub") || checkType("bar") || checkType("cafe"))
-        {
-            fontSize = 3.0f;
             textColor.set(0.7f, 1.0f, 0.7f, 1.0f);
-        }
 
-        text->setCharacterSize(fontSize);
         text->setColor(textColor);
         text->setBackdropColor(outlineColor);
+        text->setPosition(osg::Vec3(0, 0, offsetZ));
 
-        float offsetZ = hasIcon ? 7.0f : 0.0f;
-        bb->addDrawable(text, data.position + osg::Vec3(0, 0, offsetZ));
+        textGeode->addDrawable(text);
+        textGeode->getOrCreateStateSet()->setMode(
+            GL_LIGHTING,
+            osg::StateAttribute::OFF | osg::StateAttribute::OVERRIDE);
+
+        mt->addChild(textGeode);
     }
 
-    osg::StateSet* ss = bb->getOrCreateStateSet();
-    ss->setMode(GL_LIGHTING,
-                osg::StateAttribute::OFF | osg::StateAttribute::OVERRIDE);
-
-    return bb;
+    return mt;
 }
 
 osg::Node* createHUD() { return new osg::Group; }
@@ -484,7 +514,6 @@ osg::Node* process_labels(osg::Matrixd& ltw, const std::string& file_path)
     SimpleDBFReader dbfReader;
     bool hasDBF = dbfReader.load(dbf_path);
 
-    std::vector<LabelData> finalLabels;
     size_t count =
         std::min(extractor._positions.size(), dbfReader.records.size());
     if (!hasDBF) count = 0;
@@ -532,7 +561,7 @@ osg::Node* process_labels(osg::Matrixd& ltw, const std::string& file_path)
     std::cout << "--- LABELS: Utworzono " << labelsGroup->getNumChildren()
               << " etykiet." << std::endl;
 
-    labelsGroup->setCullCallback(new SortAndCullLabelsCallback(45.0));
+    labelsGroup->setCullCallback(new SortAndCullLabelsCallback());
 
     return labelsGroup;
 }
