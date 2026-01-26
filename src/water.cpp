@@ -14,7 +14,6 @@
 
 using namespace osg;
 
-
 static const char water_vert[] = R"(
 #version 420 compatibility
 varying vec4 ecp;                                                                          
@@ -90,7 +89,7 @@ void DirectionalLight(in float glos,
 void main (void)                                                 
 {                                                                
   vec3 NH = texture2D(sampler0, tcw*0.5).xyz * vec3(2.0) - vec3(1.0);
-vec3 N = normal;                                                                         
+  vec3 N = normal;                                                                         
   vec3 T = normalize(cross(vec3(0, 1, 0), N));                                             
   mat3 vmo = mat3(osg_ViewMatrix[0].xyz, osg_ViewMatrix[1].xyz, osg_ViewMatrix[2].xyz);    
   N = normalize(vmo * N);                                                                  
@@ -98,17 +97,14 @@ vec3 N = normal;
   vec3 B = normalize(cross(N, T));                                                         
   mat3 tbn = mat3(T, B, N); 
                   
-float phase = length(gl_FragCoord.xy)*NH.y;
-float cangle = 1.5*animacja + phase;
-vec3 n = orientedVector(NH, 0.2 * cos(cangle), cangle);
-
-                                             
+  float phase = length(gl_FragCoord.xy)*NH.y;
+  float cangle = 1.5*animacja + phase;
+  vec3 n = orientedVector(NH, 0.2 * cos(cangle), cangle);
+                             
   N = tbn * n;                                                                            
   
   vec4 ambiCol = vec4(0.0), diffCol = vec4(0.0), specCol = vec4(0.0);
   float specularGlos = 0.01;
-
-
 
   DirectionalLight(specularGlos, N, ecp.xyz, ambiCol, diffCol, specCol);
 
@@ -125,27 +121,21 @@ vec3 n = orientedVector(NH, 0.2 * cos(cangle), cangle);
   color1.rgb = vec3(NdotE);                                                                
   vec4 resval = vec4((color2.a) + (color1.a * 0.5));                                       
   resval.rgb += ambiCol.rgb + diffCol.rgb * 
-    mix(WaterLight.rgb, WaterDark.rgb, color1.rgb) + specCol.rgb;
+  mix(WaterLight.rgb, WaterDark.rgb, color1.rgb) + specCol.rgb;
   resval.a = 1.0;
   fragColor = resval;                                                                        
 }
 )";
 
-class MyUpdateCallback : public osg::NodeCallback 
-{
+class MyUpdateCallback : public osg::NodeCallback {
 public:
-    osg::ref_ptr<osg::Uniform> _ctime; 
-    MyUpdateCallback(osg::Uniform* ct): _ctime(ct) {} 
+    osg::ref_ptr<osg::Uniform> _ctime;
+    MyUpdateCallback(osg::Uniform* ct): _ctime(ct) {}
 
     virtual void operator()(osg::Node* node, osg::NodeVisitor* nv)
     {
-        
-            static double firstTime = osg::Timer::instance()->time_s();
-            double nowTime = osg::Timer::instance()->time_s();
-
-        //how to update uniform animacja
-            
-        
+        static double firstTime = osg::Timer::instance()->time_s();
+        double nowTime = osg::Timer::instance()->time_s();
 
         _ctime->set((float)osg::Timer::instance()->time_s());
         traverse(node, nv);
@@ -153,12 +143,13 @@ public:
 };
 
 
-osg::Node* process_water(osg::Matrixd& ltw, const std::string & file_path)
+osg::Node* process_water(osg::Matrixd& ltw, const std::string& file_path)
 {
     std::string water_file_path = file_path + "/gis_osm_water_a_free_1.shp";
-osg::ref_ptr<osg::Uniform> _ctime = new osg::Uniform("animacja", 0.f);
+    osg::ref_ptr<osg::Uniform> _ctime = new osg::Uniform("animacja", 0.f);
     // load the data
-    osg::ref_ptr<osg::Node> water_model = osgDB::readRefNodeFile(water_file_path);
+    osg::ref_ptr<osg::Node> water_model =
+        osgDB::readRefNodeFile(water_file_path);
     if (!water_model)
     {
         std::cout << "Cannot load file " << water_file_path << std::endl;
@@ -171,25 +162,19 @@ osg::ref_ptr<osg::Uniform> _ctime = new osg::Uniform("animacja", 0.f);
     WorldToLocalVisitor ltwv(ltw, true);
     water_model->accept(ltwv);
 
-
-    
-
-
-
-
     // GOOD LUCK!
 
-
-    osg::ref_ptr<osg::Texture2D> texture = 
+    osg::ref_ptr<osg::Texture2D> texture =
         new osg::Texture2D(osgDB::readImageFile("Images/pnoise0.tga"));
     water_model->getOrCreateStateSet()->setTextureAttributeAndModes(0, texture);
     texture->setWrap(osg::Texture::WRAP_S, osg::Texture::REPEAT);
     texture->setWrap(osg::Texture::WRAP_T, osg::Texture::REPEAT);
 
     texture->setUseHardwareMipMapGeneration(true);
-    texture->setFilter(osg::Texture::MIN_FILTER, osg::Texture::LINEAR_MIPMAP_LINEAR);
+    texture->setFilter(osg::Texture::MIN_FILTER,
+                       osg::Texture::LINEAR_MIPMAP_LINEAR);
 
-water_model->setUpdateCallback(new MyUpdateCallback(_ctime.get()));
+    water_model->setUpdateCallback(new MyUpdateCallback(_ctime.get()));
 
     osg::Shader* vshader = new osg::Shader(osg::Shader::VERTEX, water_vert);
     osg::Shader* fshader = new osg::Shader(osg::Shader::FRAGMENT, water_frag);
@@ -197,16 +182,15 @@ water_model->setUpdateCallback(new MyUpdateCallback(_ctime.get()));
     program->addShader(vshader);
     program->addShader(fshader);
     water_model->getOrCreateStateSet()->setAttribute(program);
-    water_model->getOrCreateStateSet()->addUniform(new osg::Uniform("sampler0", 0));
-    water_model->getOrCreateStateSet()->addUniform(new osg::Uniform("DynamicRange1", 0.125f));
-    water_model->getOrCreateStateSet()->addUniform(new osg::Uniform("DynamicRange2", 0.025f));
-    water_model->getOrCreateStateSet()->addUniform(new osg::Uniform("FresnelApproxPowFactor", 3.f));
+    water_model->getOrCreateStateSet()->addUniform(
+        new osg::Uniform("sampler0", 0));
+    water_model->getOrCreateStateSet()->addUniform(
+        new osg::Uniform("DynamicRange1", 0.125f));
+    water_model->getOrCreateStateSet()->addUniform(
+        new osg::Uniform("DynamicRange2", 0.025f));
+    water_model->getOrCreateStateSet()->addUniform(
+        new osg::Uniform("FresnelApproxPowFactor", 3.f));
     water_model->getOrCreateStateSet()->addUniform(_ctime);
-
-    
-    
-
-
 
     return water_model.release();
 }
