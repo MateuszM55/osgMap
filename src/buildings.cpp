@@ -60,12 +60,12 @@ private:
 const char* vertSource = R"(
 #version 420 compatibility
 
-out vec2 v_texCoord;
+out vec3 v_texCoord;
 out vec3 v_normal;
 out vec3 v_ecp;
 
 void main() {
-    v_texCoord = gl_MultiTexCoord0.xy;
+    v_texCoord = gl_MultiTexCoord0.xyz;
     v_ecp = vec3(gl_ModelViewMatrix * gl_Vertex);
     v_normal = gl_Normal;
     gl_Position = gl_ModelViewProjectionMatrix * gl_Vertex;
@@ -77,12 +77,12 @@ const char* fragSource = R"(
 
 uniform sampler2D diffuseMap;
 
-in vec2 v_texCoord;
+in vec3 v_texCoord;
 in vec3 v_normal;
 in vec3 v_ecp;
 
 void main() {
-    vec4 texColor = texture2D(diffuseMap, v_texCoord);
+    vec4 texColor = texture2D(diffuseMap, v_texCoord.xy);
 
     vec3 N = normalize(gl_NormalMatrix * v_normal);
     vec3 L = normalize(gl_LightSource[0].position.xyz);
@@ -92,8 +92,10 @@ void main() {
     vec3 H = normalize(L + V);
     float NdotH = max(dot(N, H), 0.0);
 
-    vec3 ambient  = gl_LightSource[0].ambient.rgb  * texColor.rgb * 0.3;
-    vec3 diffuse  = gl_LightSource[0].diffuse.rgb  * texColor.rgb * NdotL;
+    float bld_amb=0.5;
+
+    vec3 ambient = gl_LightSource[0].ambient.rgb * texColor.rgb + vec3(v_texCoord.z);
+    vec3 diffuse = gl_LightSource[0].diffuse.rgb * texColor.rgb * NdotL;
     vec3 specular = gl_LightSource[0].specular.rgb * pow(NdotH, 32.0);
 
     gl_FragColor = vec4(ambient + diffuse + specular, texColor.a);
@@ -164,7 +166,7 @@ void extrude_simple(osg::Geode* geode, osg::Geometry* baseGeom, float hMeters,
     float dx = std::max(1e-6f, maxX - minX);
     float dy = std::max(1e-6f, maxY - minY);
 
-    osg::ref_ptr<osg::Vec2Array> roofUV = new osg::Vec2Array;
+    osg::ref_ptr<osg::Vec3Array> roofUV = new osg::Vec3Array;
     roofUV->reserve(roofVerts->size());
 
     for (unsigned i = 0; i < roofVerts->size(); ++i)
@@ -172,7 +174,7 @@ void extrude_simple(osg::Geode* geode, osg::Geometry* baseGeom, float hMeters,
         const osg::Vec3& p = (*roofVerts)[i];
         float u = (p.x() - minX) / dx * roofTile;
         float vv = (p.y() - minY) / dy * roofTile;
-        roofUV->push_back(osg::Vec2(u, vv));
+        roofUV->push_back(osg::Vec3(u, vv, 0.f));
     }
 
     roof->setTexCoordArray(0, roofUV.get(), osg::Array::BIND_PER_VERTEX);
@@ -188,6 +190,10 @@ void extrude_simple(osg::Geode* geode, osg::Geometry* baseGeom, float hMeters,
     osg::ref_ptr<osg::Vec3Array> wallVerts = new osg::Vec3Array;
     wallVerts->reserve(v->size() * 6);
 
+    osg::ref_ptr<osg::Vec3Array> wallTC = new osg::Vec3Array;
+    wallTC->reserve(v->size() * 6);
+
+
     for (unsigned i = 0; i < v->size(); ++i)
     {
         osg::Vec3 b0 = (*v)[i];
@@ -196,6 +202,15 @@ void extrude_simple(osg::Geode* geode, osg::Geometry* baseGeom, float hMeters,
         t0.z() += hMeters;
         osg::Vec3 t1 = b1;
         t1.z() += hMeters;
+
+        float wrand = float(rand() % 256) / 256;
+
+        wallTC->push_back(osg::Vec3(1, 1, wrand * 0.1f));
+        wallTC->push_back(osg::Vec3(1, 0, wrand * 0.1f));
+        wallTC->push_back(osg::Vec3(0, 0, wrand * 0.1f));
+        wallTC->push_back(osg::Vec3(0, 1, wrand * 0.1f));
+        wallTC->push_back(osg::Vec3(1, 1, wrand * 0.1f));
+        wallTC->push_back(osg::Vec3(0, 0, wrand * 0.1f));
 
         wallVerts->push_back(t1);
         wallVerts->push_back(b1);
@@ -210,6 +225,8 @@ void extrude_simple(osg::Geode* geode, osg::Geometry* baseGeom, float hMeters,
 
     osg::ref_ptr<osg::Geometry> walls = new osg::Geometry;
     walls->setVertexArray(wallVerts.get());
+    walls->setTexCoordArray(0, wallTC.get());
+
     walls->addPrimitiveSet(
         new osg::DrawArrays(GL_TRIANGLES, 0, wallVerts->size()));
 
@@ -231,6 +248,7 @@ void extrude_simple(osg::Geode* geode, osg::Geometry* baseGeom, float hMeters,
     // -----------------------
     // StateSety
     // -----------------------
+    walls->setStateSet(g_roofTextures.back());
 
     if (roofIdx >= 0 && roofIdx < (int)g_roofTextures.size()
         && g_roofTextures[roofIdx].valid())
@@ -316,7 +334,7 @@ void parse_meta_data(osg::Node* model)
             uint32_t hc = (uint32_t)std::lround(h * 100.0f);
             seed ^= hc + 0x9e3779b9u + (seed << 6) + (seed >> 2);
 
-            roofIdx = (int)(seed % (uint32_t)g_roofTextures.size());
+            roofIdx = (int)(seed % (uint32_t)g_roofTextures.size() - 1);
         }
 
         extrude_simple(geode, geoms[i].get(), h, roofIdx, 8.0f);
@@ -403,6 +421,29 @@ osg::Node* process_buildings(osg::Matrixd& ltw, const std::string& file_path)
 
     if (g_roofTextures.empty())
         std::cout << "[ROOF] WARN: brak zaladowanych tekstur dachow (dds)\n";
+
+
+    // one more default material to handle walls with the same shader as roof
+    {
+        osg::Image* image = new osg::Image;
+        image->allocateImage(1, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE);
+        *(osg::Vec4ub*)image->data() = osg::Vec4ub(0xFF, 0xFF, 0xFF, 0xFF);
+        osg::StateSet* pss = new osg::StateSet;
+        osg::Texture2D* fakeTex = new osg::Texture2D(image);
+        fakeTex->setWrap(osg::Texture2D::WRAP_S, osg::Texture2D::REPEAT);
+        fakeTex->setWrap(osg::Texture2D::WRAP_T, osg::Texture2D::REPEAT);
+        fakeTex->setFilter(osg::Texture2D::MIN_FILTER, osg::Texture2D::NEAREST);
+        fakeTex->setFilter(osg::Texture2D::MAG_FILTER, osg::Texture2D::NEAREST);
+        pss->setTextureAttribute(0, fakeTex, osg::StateAttribute::ON);
+        osg::Program* program = new osg::Program;
+        program->addShader(new osg::Shader(osg::Shader::VERTEX, vertSource));
+        program->addShader(new osg::Shader(osg::Shader::FRAGMENT, fragSource));
+        pss->setAttribute(program);
+        pss->addUniform(new osg::Uniform("diffuseMap", 0));
+        pss->setMode(GL_CULL_FACE, osg::StateAttribute::ON);
+        g_roofTextures.push_back(pss);
+    }
+
 
     // 5) Extrusion
     std::cout << "[BUILDINGS] Extruding buildings...\n";

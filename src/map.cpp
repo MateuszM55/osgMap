@@ -308,8 +308,20 @@ int main(int argc, char** argv)
                 osgGA::GUIEventAdapter::KeySymbol::KEY_3));
     }
 
+
     osg::Vec3d wtrans = wbb.center();
     wtrans.normalize();
+
+    {
+        osg::Vec3d toVec =
+            osg::Matrix::rotate(osg::DegreesToRadians(-65.f), osg::Y_AXIS)
+                .preMult(osg::Z_AXIS);
+        osg::Vec3d r = wtrans ^ toVec;
+        r.normalize();
+        wtrans =
+            osg::Matrix::rotate(osg::DegreesToRadians(65.f), r).preMult(wtrans);
+    }
+
     viewer->setLightingMode(osg::View::LightingMode::SKY_LIGHT);
     viewer->getLight()->setPosition(
         osg::Vec4(wtrans[0], wtrans[1], wtrans[2], 0.f));
