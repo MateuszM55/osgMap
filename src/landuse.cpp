@@ -104,6 +104,9 @@ void setup_standard_shader(osg::StateSet* ss)
         ss->setAttributeAndModes(
             program, osg::StateAttribute::ON | osg::StateAttribute::OVERRIDE);
         ss->addUniform(new osg::Uniform("baseTexture", 0));
+        ss->addUniform(new osg::Uniform("texCoordScale", 0.2f));
+        ss->addUniform(new osg::Uniform("animStrength", 0.0f));
+        ss->addUniform(new osg::Uniform("animSpeed", 0.0f));
     }
 }
 
@@ -123,6 +126,9 @@ void setup_wind_shader(osg::StateSet* ss)
         ss->setAttributeAndModes(
             program, osg::StateAttribute::ON | osg::StateAttribute::OVERRIDE);
         ss->addUniform(new osg::Uniform("baseTexture", 0));
+        ss->addUniform(new osg::Uniform("texCoordScale", 0.05f));
+        ss->addUniform(new osg::Uniform("animStrength", 0.02f));
+        ss->addUniform(new osg::Uniform("animSpeed", 0.8f));
     }
 }
 
@@ -158,6 +164,9 @@ void setup_parallax_shader(osg::StateSet* ss)
 
         ss->addUniform(new osg::Uniform("baseTexture", 0));
         ss->addUniform(new osg::Uniform("heightMap", 1));
+        ss->addUniform(new osg::Uniform("texCoordScale", 0.05f));
+        ss->addUniform(new osg::Uniform("animStrength", 0.0f));
+        ss->addUniform(new osg::Uniform("animSpeed", 0.0f));
     }
 }
 
@@ -362,6 +371,18 @@ osg::Node* process_landuse(osg::Matrixd& ltw, osg::BoundingBox& wbb,
         {
             apply_texture(ss, "images/cemetery.dds");
             setup_parallax_shader(ss);
+        }
+        else
+        {
+            // Usun nierozpoznane geometrie z grafu sceny
+            for (size_t i = 0; i < nodes.size(); ++i)
+            {
+                while (nodes[i].valid() && nodes[i]->getNumParents())
+                    nodes[i]
+                        ->getParent(nodes[i]->getNumParents() - 1)
+                        ->removeChild(nodes[i]);
+            }
+            continue;
         }
         for (size_t i = 0; i < nodes.size(); ++i)
         {
