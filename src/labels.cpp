@@ -450,7 +450,7 @@ static osg::MatrixTransform* createLabelNode(const LabelData& data,
         text->setCharacterSize(LABEL_TEXT_SIZE);
 
         text->setAlignment(osgText::Text::CENTER_BOTTOM);
-        text->setAxisAlignment(osgText::Text::XY_PLANE);
+        text->setAxisAlignment(osgText::Text::SCREEN);
 
         text->setBackdropType(osgText::Text::OUTLINE);
 
