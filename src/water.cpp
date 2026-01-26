@@ -44,8 +44,8 @@ uniform float DynamicRange1;
 uniform float DynamicRange2;                                                               
 uniform float animacja;                                  
  
-const vec4 WaterLight = vec4(0.2, 0.4, 1.0, 1.0);                                          
-const vec4 WaterDark = vec4(0.1, 0.2, 0.4, 1.0);                                           
+const vec4 WaterLight = vec4(0.1, 0.2, 0.5, 1.0);
+const vec4 WaterDark = vec4(0.05, 0.1, 0.3, 1.0);
 out vec4 fragColor;
 
 vec3 rotateAroundAxis(vec3 v, vec3 axis, float angle) {
@@ -91,9 +91,8 @@ void main (void)
   vec3 NH = texture2D(sampler0, tcw*0.5).xyz * vec3(2.0) - vec3(1.0);
   vec3 N = normal;                                                                         
   vec3 T = normalize(cross(vec3(0, 1, 0), N));                                             
-  mat3 vmo = mat3(osg_ViewMatrix[0].xyz, osg_ViewMatrix[1].xyz, osg_ViewMatrix[2].xyz);    
-  N = normalize(vmo * N);                                                                  
-  T = normalize(vmo * T);                                                                  
+  N = normalize(gl_NormalMatrix * N);
+  T = normalize(gl_NormalMatrix * T);
   vec3 B = normalize(cross(N, T));                                                         
   mat3 tbn = mat3(T, B, N); 
                   
@@ -104,7 +103,7 @@ void main (void)
   N = tbn * n;                                                                            
   
   vec4 ambiCol = vec4(0.0), diffCol = vec4(0.0), specCol = vec4(0.0);
-  float specularGlos = 0.01;
+  float specularGlos = 0.3;
 
   DirectionalLight(specularGlos, N, ecp.xyz, ambiCol, diffCol, specCol);
 
@@ -185,11 +184,11 @@ osg::Node* process_water(osg::Matrixd& ltw, const std::string& file_path)
     water_model->getOrCreateStateSet()->addUniform(
         new osg::Uniform("sampler0", 0));
     water_model->getOrCreateStateSet()->addUniform(
-        new osg::Uniform("DynamicRange1", 0.125f));
+        new osg::Uniform("DynamicRange1", 0.1f));
     water_model->getOrCreateStateSet()->addUniform(
         new osg::Uniform("DynamicRange2", 0.025f));
     water_model->getOrCreateStateSet()->addUniform(
-        new osg::Uniform("FresnelApproxPowFactor", 3.f));
+        new osg::Uniform("FresnelApproxPowFactor", 1.2f));
     water_model->getOrCreateStateSet()->addUniform(_ctime);
 
     return water_model.release();
