@@ -72,6 +72,15 @@ int main(int argc, char** argv)
         "--max-tilt <degrees>",
         "Maximum camera tilt angle in degrees (0-90, default: 75)");
 
+    // Labels parameters
+    arguments.getApplicationUsage()->addCommandLineOption(
+        "--label-size <size>", "Text size for labels (default: 18.0)");
+    arguments.getApplicationUsage()->addCommandLineOption(
+        "--label-icon <size>", "Icon world size for labels (default: 8.0)");
+    arguments.getApplicationUsage()->addCommandLineOption(
+        "--label-dist <distance>",
+        "Max view distance for labels (default: 1500.0)");
+
     /**
      * Even though postfx have more parameters,
      * they shouldn't really be modified by the user
@@ -162,7 +171,7 @@ int main(int argc, char** argv)
     // set up the camera manipulators.
     {
         // Read max tilt parameter from command line
-        double maxTilt = 75.0; // default value
+        double maxTilt = 75.0;
         arguments.read("--max-tilt", maxTilt);
 
         osg::ref_ptr<osgGA::KeySwitchMatrixManipulator> keyswitchManipulator =
@@ -228,6 +237,15 @@ int main(int argc, char** argv)
         arguments.read("--bloom-intensity", bloom_params.intensity);
     }
 
+    float labelTextSize = 18.0f;
+    float labelIconSize = 8.0f;
+    float labelMaxDist = 1500.0f;
+    {
+        arguments.read("--label-size", labelTextSize);
+        arguments.read("--label-icon", labelIconSize);
+        arguments.read("--label-dist", labelMaxDist);
+    }
+
     // add the state manipulator
     viewer->addEventHandler(new osgGA::StateSetManipulator(
         viewer->getCamera()->getOrCreateStateSet()));
@@ -237,7 +255,6 @@ int main(int argc, char** argv)
 
     // add the window size toggle handler
     viewer->addEventHandler(new osgViewer::WindowSizeHandler);
-
     // add the stats handler
     viewer->addEventHandler(new osgViewer::StatsHandler);
 
@@ -274,7 +291,6 @@ int main(int argc, char** argv)
         viewer->getStats()->collectStats("compile", true);
     }
 
-
     /////////////////////////////////////////////////////////////////////
     //////////////////////////////////// CREATE MAP SCENE ///////////////
     /////////////////////////////////////////////////////////////////////
@@ -285,18 +301,21 @@ int main(int argc, char** argv)
     osg::ref_ptr<osg::Node> water_model = process_water(ltw, file_path);
     osg::ref_ptr<osg::Node> roads_model = process_roads(ltw, file_path);
     osg::ref_ptr<osg::Node> buildings_model = process_buildings(ltw, file_path);
-    osg::ref_ptr<osg::Node> labels_model = process_labels(ltw, file_path);
+
+    // Pass label parameters to the function
+    osg::ref_ptr<osg::Node> labels_model = process_labels(
+        ltw, file_path, labelTextSize, labelIconSize, labelMaxDist);
 
     osg::ref_ptr<osg::Group> scene = new osg::Group;
     scene->addChild(land_model);
     scene->addChild(water_model);
     scene->addChild(roads_model);
     scene->addChild(buildings_model);
-    scene->addChild(labels_model);
 
     /**************/
     /** PPU SETUP */
     /**************/
+
     osg::ref_ptr<osgMap::postfx::PostProcessor> ppu =
         new osgMap::postfx::PostProcessor(scene);
     {
@@ -391,6 +410,7 @@ int main(int argc, char** argv)
 
     //// 6. Add HUD AFTER realize() (totally allowed)
     root->addChild(hud);
+    root->addChild(labels_model);
 
     //// 7. Main loop
     bool wasMoving = false;
