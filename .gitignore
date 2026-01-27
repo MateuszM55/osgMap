@@ -41,5 +41,14 @@ main
 *.user
 *~
 
+# GIS binary data (unpack locally from external source)
+*.shp
+*.shx
+*.dbf
+*.prj
+*.cpg
+
+# OSG cache files
+*.osgb
 map_data/
 bin/
