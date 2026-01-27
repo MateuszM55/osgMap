@@ -92,8 +92,8 @@ void apply_texture(osg::StateSet* ss, const std::string& path)
 void setup_standard_shader(osg::StateSet* ss)
 {
     if (!ss) return;
-    osg::ref_ptr<osg::Shader> vert = osgDB::readRefShaderFile(
-        osg::Shader::VERTEX, "shaders/standard.vert");
+    osg::ref_ptr<osg::Shader> vert =
+        osgDB::readRefShaderFile(osg::Shader::VERTEX, "shaders/standard.vert");
     osg::ref_ptr<osg::Shader> frag = osgDB::readRefShaderFile(
         osg::Shader::FRAGMENT, "shaders/standard.frag");
     if (vert.valid() && frag.valid())
@@ -116,8 +116,8 @@ void setup_wind_shader(osg::StateSet* ss)
     if (!ss) return;
     osg::ref_ptr<osg::Shader> vert =
         osgDB::readRefShaderFile(osg::Shader::VERTEX, "shaders/wind.vert");
-    osg::ref_ptr<osg::Shader> frag = osgDB::readRefShaderFile(
-        osg::Shader::FRAGMENT, "shaders/wind.frag");
+    osg::ref_ptr<osg::Shader> frag =
+        osgDB::readRefShaderFile(osg::Shader::FRAGMENT, "shaders/wind.frag");
     if (vert.valid() && frag.valid())
     {
         osg::ref_ptr<osg::Program> program = new osg::Program;
@@ -136,8 +136,8 @@ void setup_wind_shader(osg::StateSet* ss)
 void setup_parallax_shader(osg::StateSet* ss)
 {
     if (!ss) return;
-    osg::ref_ptr<osg::Shader> vert = osgDB::readRefShaderFile(
-        osg::Shader::VERTEX, "shaders/parallax.vert");
+    osg::ref_ptr<osg::Shader> vert =
+        osgDB::readRefShaderFile(osg::Shader::VERTEX, "shaders/parallax.vert");
     osg::ref_ptr<osg::Shader> frag = osgDB::readRefShaderFile(
         osg::Shader::FRAGMENT, "shaders/parallax.frag");
     osg::ref_ptr<osg::Image> h_img =
@@ -197,8 +197,7 @@ osg::Node* process_landuse(osg::Matrixd& ltw, osg::BoundingBox& wbb,
         {
 
             if (cachedNode->getUserValue("ltw_matrix", ltw))
-            {
-            }
+            {}
             else
             {
                 std::cout << "Ostrzezenie: Cache nie zawiera macierzy LTW!"
