@@ -581,7 +581,7 @@ int main(int argc, char** argv)
                             osg::Vec3d hit, normal;
                             std::string landInfo =
                                 getLandInfoAtIntersection(root, hit);
-                            ss << "Land Data:\n" << landInfo;
+                            ss << "W pobliżu:\n" << landInfo;
                             hudSetText(ss.str());
                         }
                     }
