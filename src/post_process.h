@@ -294,7 +294,7 @@ private:
 
     osg::ref_ptr<osg::Camera> m_camera;
     osg::ref_ptr<osg::Geode> m_render_plane;
-    osg::ref_ptr<osg::Texture2D> m_buffers[4];
+    std::vector<osg::ref_ptr<osg::Texture2D>> m_buffers;
 };
 
 /**************************************************************************************************/
@@ -324,10 +324,16 @@ template <typename T> void PostProcessor::pushLayer(void)
         std::is_base_of<Layer, T>::value,
         "Template argument must be derived from osgMap::postfx::Layer class");
 
-    int buffer_in = m_layers.size() & 0x1 ? COLOR_BUFFER_B : COLOR_BUFFER_A;
-    int buffer_out =
-        buffer_in == COLOR_BUFFER_A ? COLOR_BUFFER_B : COLOR_BUFFER_A;
-    buffer_in = !m_layers.size() ? Buffer::FRAME_BUFFER : buffer_in;
+
+    m_buffers.push_back(new osg::Texture2D);
+    m_buffers.back()->setInternalFormat(GL_RGBA);
+    m_buffers.back()->setFilter(osg::Texture::MIN_FILTER,
+                                osg::Texture::NEAREST);
+    m_buffers.back()->setFilter(osg::Texture::MAG_FILTER,
+                                osg::Texture::NEAREST);
+
+    int buffer_in = m_layers.size() > 0 ? m_layers.size() + 1 : 0;
+    int buffer_out = m_layers.size() + 2;
 
     Layer* new_layer = new T(m_buffers[buffer_in], m_buffers[buffer_out],
                              m_buffers[Buffer::DEPTH_BUFFER], this);

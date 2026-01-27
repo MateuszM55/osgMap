@@ -1,4 +1,4 @@
-﻿#include <osgDB/ReadFile>
+#include <osgDB/ReadFile>
 #include <osgUtil/Optimizer>
 #include <osg/CoordinateSystemNode>
 
@@ -7,6 +7,7 @@
 #include <osgText/Text>
 #include <osg/MatrixTransform>
 #include <osg/ShapeDrawable>
+#include <osg/ImageStream>
 
 #include <osgViewer/Viewer>
 #include <osgViewer/ViewerEventHandlers>
@@ -24,6 +25,9 @@
 
 
 #include <iostream>
+#include <future>
+#include <chrono>
+#include <thread>
 
 #include "common.h"
 #include "HUD.h"
@@ -31,11 +35,136 @@
 #include "post_process.h"
 
 using namespace osg;
+using namespace std::chrono_literals;
 float g_targetAlpha = 0.0f;
 float g_currentAlpha = 0.0f;
 
 osg::ref_ptr<osgViewer::Viewer> viewer;
 osg::ref_ptr<osg::EllipsoidModel> ellipsoid;
+
+osg::Group* create_loading_screen()
+{
+    std::string libName =
+        osgDB::Registry::instance()->createLibraryNameForExtension("ffmpeg");
+    osgDB::Registry::instance()->loadLibrary(libName);
+
+    osg::ref_ptr<osg::Geode> geode = new osg::Geode;
+
+    osg::StateSet* stateset = geode->getOrCreateStateSet();
+    stateset->setMode(GL_LIGHTING, osg::StateAttribute::OFF);
+
+    // clang-format off
+    static const char* shaderSourceTextureVertex = R"(
+        #version 420 compatibility
+        out vec4 texcoord;
+
+        void main(void)
+        {
+            texcoord = gl_MultiTexCoord0;
+            gl_Position = gl_ModelViewProjectionMatrix * gl_Vertex;
+        }
+        )";
+
+    static const char* shaderSourceTexture2D = R"(
+        #version 420 compatibility
+        uniform sampler2D movie_texture;
+        in vec4 texcoord;
+        out vec4 fragColor;
+
+        void main(void)
+        {
+            vec4 texture_color = texture2D(movie_texture, texcoord.st);
+            fragColor = texture_color;
+        }
+        )";
+    // clang-format on
+
+
+    osg::ref_ptr<osg::Group> group = new osg::Group;
+    osg::Program* program = new osg::Program;
+
+    program->addShader(
+        new osg::Shader(osg::Shader::VERTEX, shaderSourceTextureVertex));
+    program->addShader(
+        new osg::Shader(osg::Shader::FRAGMENT, shaderSourceTexture2D));
+
+    stateset->addUniform(new osg::Uniform("movie_texture", 0));
+    stateset->setAttribute(program);
+    stateset->setMode(
+        GL_BLEND, osg::StateAttribute::OFF | osg::StateAttribute::PROTECTED);
+
+    osg::ref_ptr<osg::Image> image =
+        osgDB::readRefImageFile("images/osgmap_loading.mp4");
+
+    if (!image)
+    {
+        image = osgDB::readRefImageFile("images/loading.dds");
+    }
+
+    osg::Texture2D* texture = new osg::Texture2D(image);
+    texture->setResizeNonPowerOfTwoHint(false);
+    texture->setFilter(osg::Texture::MIN_FILTER, osg::Texture::LINEAR);
+    texture->setWrap(osg::Texture::WRAP_S, osg::Texture::CLAMP_TO_EDGE);
+    texture->setWrap(osg::Texture::WRAP_T, osg::Texture::CLAMP_TO_EDGE);
+    texture->setUnRefImageDataAfterApply(true);
+
+    stateset->setTextureAttribute(0, texture);
+    stateset->setMode(GL_BLEND, osg::StateAttribute::OFF);
+    stateset->setMode(GL_CULL_FACE, osg::StateAttribute::ON);
+
+    osg::ImageStream* imagestream =
+        dynamic_cast<osg::ImageStream*>(image.get());
+
+    if (imagestream)
+    {
+        imagestream->play();
+    }
+
+    if (image)
+    {
+        float width = image->s() * image->getPixelAspectRatio();
+        float height = image->t();
+
+        {
+            geode->setCullingActive(false);
+
+            osg::Geometry* hud = new osg::Geometry;
+            osg::Vec3Array* vertices = new osg::Vec3Array;
+            float depth = -0.1;
+            vertices->push_back(osg::Vec3(0, height, depth));
+            vertices->push_back(osg::Vec3(0, 0, depth));
+            vertices->push_back(osg::Vec3(width, 0, depth));
+            vertices->push_back(osg::Vec3(width, 0, depth));
+            vertices->push_back(osg::Vec3(width, height, depth));
+            vertices->push_back(osg::Vec3(0, height, depth));
+            hud->setVertexArray(vertices);
+
+            osg::Vec2Array* texCoords = new osg::Vec2Array;
+            texCoords->push_back(osg::Vec2(0, 0));
+            texCoords->push_back(osg::Vec2(0, 1));
+            texCoords->push_back(osg::Vec2(1, 1));
+            texCoords->push_back(osg::Vec2(1, 1));
+            texCoords->push_back(osg::Vec2(1, 0));
+            texCoords->push_back(osg::Vec2(0, 0));
+            hud->setTexCoordArray(0, texCoords);
+
+            hud->addPrimitiveSet(new osg::DrawArrays(GL_TRIANGLES, 0, 6));
+            geode->addDrawable(hud);
+
+            osg::MatrixTransform* modelview_abs = new osg::MatrixTransform;
+            modelview_abs->setReferenceFrame(osg::Transform::ABSOLUTE_RF);
+            modelview_abs->setMatrix(osg::Matrixf::identity());
+            modelview_abs->addChild(geode);
+
+            osg::Projection* projection = new osg::Projection;
+            projection->setMatrix(osg::Matrixf::ortho2D(0, width, 0, height));
+            projection->addChild(modelview_abs);
+            group->addChild(projection);
+        }
+    }
+
+    return group.release();
+}
 
 int main(int argc, char** argv)
 {
@@ -168,6 +297,19 @@ int main(int argc, char** argv)
         }
     }
 
+    osgMap::postfx::FXAA::Parameters fxaa_params;
+    osgMap::postfx::DOF::Parameters dof_params;
+    osgMap::postfx::Bloom::Parameters bloom_params;
+    {
+        arguments.read("--fxaa-search-steps", fxaa_params.number_search_steps);
+        arguments.read("--fxaa-blur-close", fxaa_params.blur_close_distance);
+        arguments.read("--fxaa-blur-far", fxaa_params.blur_far_distance);
+        arguments.read("--dof-max-blur", dof_params.max_blur);
+        arguments.read("--dof-focus-range", dof_params.focus_range);
+        arguments.read("--bloom-threshold", bloom_params.threshold);
+        arguments.read("--bloom-intensity", bloom_params.intensity);
+    }
+
     // set up the camera manipulators.
     {
         // Read max tilt parameter from command line
@@ -222,19 +364,6 @@ int main(int argc, char** argv)
 
         // Wrap the key switch manipulator inside your movement tracker
         viewer->setCameraManipulator(keyswitchManipulator.get());
-    }
-
-    osgMap::postfx::FXAA::Parameters fxaa_params;
-    osgMap::postfx::DOF::Parameters dof_params;
-    osgMap::postfx::Bloom::Parameters bloom_params;
-    {
-        arguments.read("--fxaa-search-steps", fxaa_params.number_search_steps);
-        arguments.read("--fxaa-blur-close", fxaa_params.blur_close_distance);
-        arguments.read("--fxaa-blur-far", fxaa_params.blur_far_distance);
-        arguments.read("--dof-max-blur", dof_params.max_blur);
-        arguments.read("--dof-focus-range", dof_params.focus_range);
-        arguments.read("--bloom-threshold", bloom_params.threshold);
-        arguments.read("--bloom-intensity", bloom_params.intensity);
     }
 
     float labelTextSize = 18.0f;
@@ -295,209 +424,216 @@ int main(int argc, char** argv)
     //////////////////////////////////// CREATE MAP SCENE ///////////////
     /////////////////////////////////////////////////////////////////////
 
-    osg::Matrixd ltw;
-    osg::BoundingBox wbb;
-    osg::ref_ptr<osg::Node> land_model = process_landuse(ltw, wbb, file_path);
-    osg::ref_ptr<osg::Node> water_model = process_water(ltw, file_path);
-    osg::ref_ptr<osg::Node> roads_model = process_roads(ltw, file_path);
-    osg::ref_ptr<osg::Node> buildings_model = process_buildings(ltw, file_path);
 
-    // Pass label parameters to the function
-    osg::ref_ptr<osg::Node> labels_model = process_labels(
-        ltw, file_path, labelTextSize, labelIconSize, labelMaxDist);
-
+    osg::ref_ptr<osg::MatrixTransform> root = new osg::MatrixTransform;
     osg::ref_ptr<osg::Group> scene = new osg::Group;
-    scene->addChild(land_model);
-    scene->addChild(water_model);
-    scene->addChild(roads_model);
-    scene->addChild(buildings_model);
+    auto prepare_scene = [&labelTextSize, &labelIconSize, &labelMaxDist](
+                             osg::ref_ptr<osg::MatrixTransform>& root,
+                             osg::ref_ptr<osg::Group>& scene,
+                             const std::string& file_path) {
+        osg::Matrixd ltw;
+        osg::BoundingBox wbb;
+        osg::ref_ptr<osg::Node> land_model =
+            process_landuse(ltw, wbb, file_path);
+        osg::ref_ptr<osg::Node> water_model = process_water(ltw, file_path);
+        osg::ref_ptr<osg::Node> roads_model = process_roads(ltw, file_path);
+        osg::ref_ptr<osg::Node> buildings_model =
+            process_buildings(ltw, file_path);
+        osg::ref_ptr<osg::Node> labels_model = process_labels(
+            ltw, file_path, labelTextSize, labelIconSize, labelMaxDist);
 
-    /**************/
-    /** PPU SETUP */
-    /**************/
+        scene->addChild(land_model);
+        scene->addChild(water_model);
+        scene->addChild(roads_model);
+        scene->addChild(buildings_model);
+        root->addChild(labels_model);
 
-    osg::ref_ptr<osgMap::postfx::PostProcessor> ppu =
-        new osgMap::postfx::PostProcessor(scene);
-    {
-        ppu->pushLayer<osgMap::postfx::FXAA>();
-        ppu->pushLayer<osgMap::postfx::DOF>();
-        ppu->pushLayer<osgMap::postfx::Bloom>();
+        osg::Vec3d wtrans = wbb.center();
+        wtrans.normalize();
 
-        static_cast<osgMap::postfx::FXAA*>(
-            ppu->getLayer<osgMap::postfx::FXAA>())
-            ->setParameters(fxaa_params);
-        static_cast<osgMap::postfx::DOF*>(ppu->getLayer<osgMap::postfx::DOF>())
-            ->setParameters(dof_params);
-        static_cast<osgMap::postfx::Bloom*>(
-            ppu->getLayer<osgMap::postfx::Bloom>())
-            ->setParameters(bloom_params);
+        {
+            osg::Vec3d toVec =
+                osg::Matrix::rotate(osg::DegreesToRadians(-65.f), osg::Y_AXIS)
+                    .preMult(osg::Z_AXIS);
+            osg::Vec3d r = wtrans ^ toVec;
+            r.normalize();
+            wtrans = osg::Matrix::rotate(osg::DegreesToRadians(75.f), r)
+                         .preMult(wtrans);
+        }
 
-        viewer->addEventHandler(ppu->getResizeHandler());
-        viewer->addEventHandler(ppu->getActivationHandler<osgMap::postfx::FXAA>(
-            osgGA::GUIEventAdapter::KeySymbol::KEY_1));
-        viewer->addEventHandler(ppu->getActivationHandler<osgMap::postfx::DOF>(
-            osgGA::GUIEventAdapter::KeySymbol::KEY_2));
-        viewer->addEventHandler(
-            ppu->getActivationHandler<osgMap::postfx::Bloom>(
-                osgGA::GUIEventAdapter::KeySymbol::KEY_3));
-    }
+        viewer->setLightingMode(osg::View::LightingMode::SKY_LIGHT);
+        viewer->getLight()->setPosition(
+            osg::Vec4(wtrans[0], wtrans[1], wtrans[2], 0.f));
+        viewer->getLight()->setDirection(
+            osg::Vec3(wtrans[0], wtrans[1], wtrans[2]));
+        viewer->getLight()->setAmbient(osg::Vec4(0.2f, 0.2f, 0.2f, 1.0f));
+        viewer->getLight()->setDiffuse(osg::Vec4(0.8f, 0.8f, 0.8f, 1.0f));
+        viewer->getLight()->setSpecular(osg::Vec4(0.5f, 0.5f, 0.5f, 1.0f));
 
+        root->setMatrix(ltw);
+    };
 
-    osg::Vec3d wtrans = wbb.center();
-    wtrans.normalize();
-
-    {
-        osg::Vec3d toVec =
-            osg::Matrix::rotate(osg::DegreesToRadians(-65.f), osg::Y_AXIS)
-                .preMult(osg::Z_AXIS);
-        osg::Vec3d r = wtrans ^ toVec;
-        r.normalize();
-        wtrans =
-            osg::Matrix::rotate(osg::DegreesToRadians(65.f), r).preMult(wtrans);
-    }
-
-    viewer->setLightingMode(osg::View::LightingMode::SKY_LIGHT);
-    viewer->getLight()->setPosition(
-        osg::Vec4(wtrans[0], wtrans[1], wtrans[2], 0.f));
-    viewer->getLight()->setDirection(
-        osg::Vec3(wtrans[0], wtrans[1], wtrans[2]));
-    viewer->getLight()->setAmbient(osg::Vec4(0.2f, 0.2f, 0.2f, 1.0f));
-    viewer->getLight()->setDiffuse(osg::Vec4(0.8f, 0.8f, 0.8f, 1.0f));
-    viewer->getLight()->setSpecular(osg::Vec4(0.5f, 0.5f, 0.5f, 1.0f));
-
-    osg::MatrixTransform* root = new osg::MatrixTransform;
-    root->setMatrix(ltw);
-    root->addChild(ppu);
-    root->addChild(ppu->getRenderPlaneProjection());
-
-    // 1. Build your main scene
-
-    // 2. Set scene BEFORE realize()
-    viewer->setSceneData(root);
+    viewer->setSceneData(create_loading_screen());
     viewer->setUpViewOnSingleScreen(0);
-
-    // 3. Realize the viewer (creates the window + context)
     viewer->realize();
 
-    //// 4. Now viewport exists → safe to read size
-    if (viewer->getCamera() == nullptr
-        || viewer->getCamera()->getViewport() == nullptr)
-    {
-        std::cout << "Viewer setup failed!" << std::endl;
-        return 0;
-    }
+    std::future<void> loading =
+        std::async(std::launch::async, prepare_scene, std::ref(root),
+                   std::ref(scene), file_path);
 
+    // viewport exists → safe to read size
     int w = viewer->getCamera()->getViewport()->width();
     int h = viewer->getCamera()->getViewport()->height();
 
-    /**
-     * less of a problem in windowed mode,
-     * but when running in fullscreen mode,
-     * don't forget to call resize on viewer
-     * mount!
-     */
-    ppu->resize(w, h);
-
-    //// 5. Create HUD
-    osg::Camera* hud = createHUD("images/logo.png", 0.3f, w, h);
-
-    //// Find the geode in the HUD (you might need to store it during creation)
-    osg::Geode* hudGeode = dynamic_cast<osg::Geode*>(hud->getChild(0));
-
-    //// Add resize handler
-    viewer->addEventHandler(
-        new HUDResizeHandler(hud, hudGeode, "images/logo.png", 0.3f));
-
-    //// 6. Add HUD AFTER realize() (totally allowed)
-    root->addChild(hud);
-    root->addChild(labels_model);
-
-    //// 7. Main loop
     bool wasMoving = false;
     const float FADE_SPEED = 2.0f;
-
-    //// Initialize to visible
-    g_currentAlpha = 1.0f;
-    g_targetAlpha = 1.0f;
-
-    //// Set initial alpha values
-    if (g_hudAlpha.valid())
-    {
-        g_hudAlpha->set(g_currentAlpha);
-    }
-
     double lastTime = viewer->getFrameStamp()->getReferenceTime();
 
     while (!viewer->done())
     {
-        double frameTime = viewer->getFrameStamp()->getReferenceTime();
-        float deltaTime = frameTime - lastTime;
-        lastTime = frameTime;
+        viewer->frame();
 
-        auto* keySwitch = dynamic_cast<osgGA::KeySwitchMatrixManipulator*>(
-            viewer->getCameraManipulator());
-
-        if (keySwitch)
+        if (loading.valid())
         {
-            osgGA::CameraManipulator* current =
-                keySwitch->getCurrentMatrixManipulator();
-
-            if (auto* google = dynamic_cast<GoogleMapsManipulator*>(current))
+            if (loading.wait_for(0ms) == std::future_status::ready)
             {
-                bool moving = google->isMoving();
+                loading.get();
 
-                // Update target alpha based on movement
-                if (moving)
+                /**************/
+                /** PPU SETUP */
+                /**************/
+                osg::ref_ptr<osgMap::postfx::PostProcessor> ppu =
+                    new osgMap::postfx::PostProcessor(scene);
                 {
-                    g_targetAlpha = 0.0f; // Fade out when moving
+                    ppu->pushLayer<osgMap::postfx::FXAA>();
+                    ppu->pushLayer<osgMap::postfx::DOF>();
+                    ppu->pushLayer<osgMap::postfx::Bloom>();
+
+                    static_cast<osgMap::postfx::FXAA*>(
+                        ppu->getLayer<osgMap::postfx::FXAA>())
+                        ->setParameters(fxaa_params);
+                    static_cast<osgMap::postfx::DOF*>(
+                        ppu->getLayer<osgMap::postfx::DOF>())
+                        ->setParameters(dof_params);
+                    static_cast<osgMap::postfx::Bloom*>(
+                        ppu->getLayer<osgMap::postfx::Bloom>())
+                        ->setParameters(bloom_params);
+
+                    viewer->addEventHandler(ppu->getResizeHandler());
+                    viewer->addEventHandler(
+                        ppu->getActivationHandler<osgMap::postfx::FXAA>(
+                            osgGA::GUIEventAdapter::KeySymbol::KEY_1));
+                    viewer->addEventHandler(
+                        ppu->getActivationHandler<osgMap::postfx::DOF>(
+                            osgGA::GUIEventAdapter::KeySymbol::KEY_2));
+                    viewer->addEventHandler(
+                        ppu->getActivationHandler<osgMap::postfx::Bloom>(
+                            osgGA::GUIEventAdapter::KeySymbol::KEY_3));
+                }
+
+                root->addChild(ppu);
+                root->addChild(ppu->getRenderPlaneProjection());
+                ppu->resize(w, h);
+
+                // Create HUD
+                osg::Camera* hud = createHUD("images/logo.png", 0.3f, w, h);
+
+                // Find the geode in the HUD (you might need to store it during
+                // creation)
+                osg::Geode* hudGeode =
+                    dynamic_cast<osg::Geode*>(hud->getChild(0));
+
+                // Add resize handler
+                viewer->addEventHandler(new HUDResizeHandler(
+                    hud, hudGeode, "images/logo.png", 0.3f));
+
+                // Add HUD AFTER realize() (totally allowed)
+                root->addChild(hud);
+                viewer->setSceneData(root);
+
+                // Initialize to visible
+                g_currentAlpha = 1.0f;
+                g_targetAlpha = 1.0f;
+
+                // Set initial alpha values
+                if (g_hudAlpha.valid())
+                {
+                    g_hudAlpha->set(g_currentAlpha);
+                }
+
+                lastTime = viewer->getFrameStamp()->getReferenceTime();
+            }
+        }
+        else
+        {
+            double frameTime = viewer->getFrameStamp()->getReferenceTime();
+            float deltaTime = frameTime - lastTime;
+            lastTime = frameTime;
+
+            auto* keySwitch = dynamic_cast<osgGA::KeySwitchMatrixManipulator*>(
+                viewer->getCameraManipulator());
+
+            if (keySwitch)
+            {
+                osgGA::CameraManipulator* current =
+                    keySwitch->getCurrentMatrixManipulator();
+
+                if (auto* google =
+                        dynamic_cast<GoogleMapsManipulator*>(current))
+                {
+                    bool moving = google->isMoving();
+
+                    // Update target alpha based on movement
+                    if (moving)
+                    {
+                        g_targetAlpha = 0.0f; // Fade out when moving
+                    }
+                    else
+                    {
+                        g_targetAlpha = 1.0f; // Fade in when stopped
+
+                        // When just stopped moving, update text content
+                        if (wasMoving)
+                        {
+                            std::ostringstream ss;
+                            osg::Vec3d hit, normal;
+                            std::string landInfo =
+                                getLandInfoAtIntersection(root, hit);
+                            ss << "W pobliżu:\n" << landInfo;
+                            hudSetText(ss.str());
+                        }
+                    }
+
+                    wasMoving = moving;
+                }
+            }
+
+            // ALWAYS smoothly interpolate current alpha toward target (runs
+            // every frame)
+            float diff = g_targetAlpha - g_currentAlpha;
+            if (std::abs(diff) > 0.001f)
+            {
+                float step = FADE_SPEED * deltaTime;
+
+                if (std::abs(diff) < step)
+                {
+                    g_currentAlpha = g_targetAlpha;
                 }
                 else
                 {
-                    g_targetAlpha = 1.0f; // Fade in when stopped
-
-                    // When just stopped moving, update text content
-                    if (wasMoving)
-                    {
-                        std::ostringstream ss;
-                        osg::Vec3d hit, normal;
-                        std::string landInfo =
-                            getLandInfoAtIntersection(root, hit);
-                        ss << "Land Data:\n" << landInfo;
-                        hudSetText(ss.str());
-                    }
+                    g_currentAlpha += (diff > 0 ? step : -step);
                 }
 
-                wasMoving = moving;
+                // Clamp to valid range
+                g_currentAlpha = std::max(0.0f, std::min(1.0f, g_currentAlpha));
             }
-        }
 
-        // ALWAYS smoothly interpolate current alpha toward target (runs every
-        // frame)
-        float diff = g_targetAlpha - g_currentAlpha;
-        if (std::abs(diff) > 0.001f)
-        {
-            float step = FADE_SPEED * deltaTime;
-
-            if (std::abs(diff) < step)
+            // ALWAYS update alpha every frame for smooth animation
+            if (g_hudAlpha.valid())
             {
-                g_currentAlpha = g_targetAlpha;
+                g_hudAlpha->set(g_currentAlpha);
             }
-            else
-            {
-                g_currentAlpha += (diff > 0 ? step : -step);
-            }
-
-            // Clamp to valid range
-            g_currentAlpha = std::max(0.0f, std::min(1.0f, g_currentAlpha));
         }
-
-        // ALWAYS update alpha every frame for smooth animation
-        if (g_hudAlpha.valid())
-        {
-            g_hudAlpha->set(g_currentAlpha);
-        }
-
-        viewer->frame();
     }
 
     return 0;

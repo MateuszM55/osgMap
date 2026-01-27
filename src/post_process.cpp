@@ -84,9 +84,9 @@ void Layer::resize(int width, int height)
 
 PostProcessor::PostProcessor(osg::Group* scene): m_camera(new osg::Camera)
 {
-    for (int i = 0; i < 4; ++i)
+    for (int i = 0; i < 2; ++i)
     {
-        m_buffers[i] = new osg::Texture2D;
+        m_buffers.push_back(new osg::Texture2D);
         if (i == Buffer::DEPTH_BUFFER)
         {
             m_buffers[i]->setSourceType(GL_FLOAT);

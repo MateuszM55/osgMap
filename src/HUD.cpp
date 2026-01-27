@@ -256,5 +256,5 @@ std::string getLandInfoAtIntersection(osg::Node* sceneRoot,
 
     if (hitCount > 0) return allInfo.str();
 
-    return "No land data found at intersection";
+    return "";
 }
