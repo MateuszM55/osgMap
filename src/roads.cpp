@@ -267,6 +267,7 @@ public:
             osg::Geometry* roadMesh = createRoadMesh(lineGeom, width);
             if (roadMesh)
             {
+                roadMesh->setUserData(lineGeom->getUserData());
                 roadMesh->setStateSet(selectedState);
                 toRemove.push_back(lineGeom);
                 toAdd.push_back(roadMesh);
