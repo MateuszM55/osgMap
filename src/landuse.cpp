@@ -59,16 +59,17 @@ void parse_meta_data(osg::Node* model, Mapping& umap)
 void process_background(osg::Node* land_model)
 {
     osg::BoundingSphere bound = land_model->computeBound();
-    osg::Geometry* bg =
-        osg::createTexturedQuadGeometry(
-            -osg::X_AXIS * bound.radius() - osg::Y_AXIS * bound.radius(),
-            osg::X_AXIS * bound.radius() * 2, osg::Y_AXIS * bound.radius() * 2, 1000.f, 1000.f);
+    osg::Geometry* bg = osg::createTexturedQuadGeometry(
+        -osg::X_AXIS * bound.radius() - osg::Y_AXIS * bound.radius(),
+        osg::X_AXIS * bound.radius() * 2, osg::Y_AXIS * bound.radius() * 2,
+        1000.f, 1000.f);
 
-    osg::Image * img = osgDB::readImageFile ( "images/grass.dds" );
-    osg::Texture2D * texture = new osg::Texture2D ( img );
+    osg::Image* img = osgDB::readImageFile("images/grass.dds");
+    osg::Texture2D* texture = new osg::Texture2D(img);
     texture->setWrap(osg::Texture::WRAP_S, osg::Texture::REPEAT);
     texture->setWrap(osg::Texture::WRAP_T, osg::Texture::REPEAT);
-    texture->setFilter(osg::Texture::MIN_FILTER, osg::Texture::LINEAR_MIPMAP_LINEAR);
+    texture->setFilter(osg::Texture::MIN_FILTER,
+                       osg::Texture::LINEAR_MIPMAP_LINEAR);
     texture->setFilter(osg::Texture::MAG_FILTER, osg::Texture::LINEAR);
     texture->setUseHardwareMipMapGeneration(true);
     bg->getOrCreateStateSet()->setTextureAttributeAndModes(0, texture);
@@ -83,7 +84,7 @@ void process_background(osg::Node* land_model)
         land_model->asGeode()->addDrawable(bg);
     else
     {
-        osg::Geode* geode=new osg::Geode;
+        osg::Geode* geode = new osg::Geode;
         land_model->asGroup()->addChild(geode);
         geode->addDrawable(bg);
     }

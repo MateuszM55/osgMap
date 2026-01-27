@@ -439,8 +439,8 @@ int main(int argc, char** argv)
         osg::ref_ptr<osg::Node> roads_model = process_roads(ltw, file_path);
         osg::ref_ptr<osg::Node> buildings_model =
             process_buildings(ltw, file_path);
-        osg::ref_ptr<osg::Node> labels_model = process_labels(ltw, file_path, 
-            labelTextSize, labelIconSize, labelMaxDist);
+        osg::ref_ptr<osg::Node> labels_model = process_labels(
+            ltw, file_path, labelTextSize, labelIconSize, labelMaxDist);
 
         scene->addChild(land_model);
         scene->addChild(water_model);
