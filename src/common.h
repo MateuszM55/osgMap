@@ -8,7 +8,9 @@ osg::Node* process_landuse(osg::Matrixd& ltw, osg::BoundingBox& wbb, const std::
 osg::Node* process_water(osg::Matrixd& ltw, const std::string & file_path);
 osg::Node* process_buildings(osg::Matrixd& ltw, const std::string & file_path);
 osg::Node* process_roads(osg::Matrixd& ltw, const std::string & file_path);
-osg::Node* process_labels(osg::Matrixd& ltw, const std::string & file_path);
+osg::Node* process_labels(osg::Matrixd& ltw, const std::string& file_path,
+                          float textSize, float iconSize,
+                          float maxViewDist);
 
 
 extern osg::ref_ptr<osg::EllipsoidModel> ellipsoid;

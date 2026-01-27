@@ -39,6 +39,7 @@ osg::ref_ptr<osg::EllipsoidModel> ellipsoid;
 
 int main(int argc, char** argv)
 {
+    // use an ArgumentParser object to manage the program arguments.
     osg::ArgumentParser arguments(&argc, argv);
 
     arguments.getApplicationUsage()->setApplicationName(
@@ -71,7 +72,19 @@ int main(int argc, char** argv)
         "--max-tilt <degrees>",
         "Maximum camera tilt angle in degrees (0-90, default: 75)");
 
+    // Labels parameters
+    arguments.getApplicationUsage()->addCommandLineOption(
+        "--label-size <size>", "Text size for labels (default: 18.0)");
+    arguments.getApplicationUsage()->addCommandLineOption(
+        "--label-icon <size>", "Icon world size for labels (default: 8.0)");
+    arguments.getApplicationUsage()->addCommandLineOption(
+        "--label-dist <distance>",
+        "Max view distance for labels (default: 1500.0)");
 
+    /**
+     * Even though postfx have more parameters,
+     * they shouldn't really be modified by the user
+     */
     arguments.getApplicationUsage()->addCommandLineOption(
         "--fxaa-search-steps <num_steps>",
         "Amount of search steps performed by FXXA (default: 8)");
@@ -107,7 +120,8 @@ int main(int argc, char** argv)
         return 1;
     }
 
-
+    // report any errors if they have occurred when parsing the program
+    // arguments.
     if (arguments.errors())
     {
         arguments.writeErrorMessages(std::cout);
@@ -154,16 +168,16 @@ int main(int argc, char** argv)
         }
     }
 
-
+    // set up the camera manipulators.
     {
-
+        // Read max tilt parameter from command line
         double maxTilt = 75.0;
         arguments.read("--max-tilt", maxTilt);
 
         osg::ref_ptr<osgGA::KeySwitchMatrixManipulator> keyswitchManipulator =
             new osgGA::KeySwitchMatrixManipulator;
 
-
+        // Create GoogleMapsManipulator and set max tilt
         GoogleMapsManipulator* googleMapsManip = new GoogleMapsManipulator();
         googleMapsManip->setMaxTiltDeg(maxTilt);
 
@@ -207,7 +221,7 @@ int main(int argc, char** argv)
             }
         }
 
-
+        // Wrap the key switch manipulator inside your movement tracker
         viewer->setCameraManipulator(keyswitchManipulator.get());
     }
 
@@ -224,34 +238,45 @@ int main(int argc, char** argv)
         arguments.read("--bloom-intensity", bloom_params.intensity);
     }
 
+    float labelTextSize = 18.0f;
+    float labelIconSize = 8.0f;
+    float labelMaxDist = 1500.0f;
+    {
+        arguments.read("--label-size", labelTextSize);
+        arguments.read("--label-icon", labelIconSize);
+        arguments.read("--label-dist", labelMaxDist);
+    }
 
+    // add the state manipulator
     viewer->addEventHandler(new osgGA::StateSetManipulator(
         viewer->getCamera()->getOrCreateStateSet()));
 
-
+    // add the thread model handler
     viewer->addEventHandler(new osgViewer::ThreadingHandler);
 
-
+    // add the window size toggle handler
     viewer->addEventHandler(new osgViewer::WindowSizeHandler);
-
+    // add the stats handler
     viewer->addEventHandler(new osgViewer::StatsHandler);
 
-
+    // add the help handler
     viewer->addEventHandler(
         new osgViewer::HelpHandler(arguments.getApplicationUsage()));
 
-
+    // add the record camera path handler
     viewer->addEventHandler(new osgViewer::RecordCameraPathHandler);
 
-
+    // add the LOD Scale handler
     viewer->addEventHandler(new osgViewer::LODScaleHandler);
 
+    // add the screen capture handler
     viewer->addEventHandler(new osgViewer::ScreenCaptureHandler);
 
-
+    // any option left unread are converted into errors to write out later.
     arguments.reportRemainingOptionsAsUnrecognized();
 
-
+    // report any errors if they have occurred when parsing the program
+    // arguments.
     if (arguments.errors())
     {
         arguments.writeErrorMessages(std::cout);
@@ -267,6 +292,9 @@ int main(int argc, char** argv)
         viewer->getStats()->collectStats("compile", true);
     }
 
+    /////////////////////////////////////////////////////////////////////
+    //////////////////////////////////// CREATE MAP SCENE ///////////////
+    /////////////////////////////////////////////////////////////////////
 
     osg::Matrixd ltw;
     osg::BoundingBox wbb;
@@ -274,13 +302,20 @@ int main(int argc, char** argv)
     osg::ref_ptr<osg::Node> water_model = process_water(ltw, file_path);
     osg::ref_ptr<osg::Node> roads_model = process_roads(ltw, file_path);
     osg::ref_ptr<osg::Node> buildings_model = process_buildings(ltw, file_path);
-    osg::ref_ptr<osg::Node> labels_model = process_labels(ltw, file_path);
+
+    // Pass label parameters to the function
+    osg::ref_ptr<osg::Node> labels_model = process_labels(
+        ltw, file_path, labelTextSize, labelIconSize, labelMaxDist);
 
     osg::ref_ptr<osg::Group> scene = new osg::Group;
     scene->addChild(land_model);
     scene->addChild(water_model);
     scene->addChild(roads_model);
     scene->addChild(buildings_model);
+
+    /**************/
+    /** PPU SETUP */
+    /**************/
 
     osg::ref_ptr<osgMap::postfx::PostProcessor> ppu =
         new osgMap::postfx::PostProcessor(scene);
@@ -336,14 +371,16 @@ int main(int argc, char** argv)
     root->addChild(ppu);
     root->addChild(ppu->getRenderPlaneProjection());
 
+    // 1. Build your main scene
 
+    // 2. Set scene BEFORE realize()
     viewer->setSceneData(root);
     viewer->setUpViewOnSingleScreen(0);
 
-
+    // 3. Realize the viewer (creates the window + context)
     viewer->realize();
 
-
+    //// 4. Now viewport exists → safe to read size
     if (viewer->getCamera() == nullptr
         || viewer->getCamera()->getViewport() == nullptr)
     {
@@ -354,31 +391,37 @@ int main(int argc, char** argv)
     int w = viewer->getCamera()->getViewport()->width();
     int h = viewer->getCamera()->getViewport()->height();
 
+    /**
+     * less of a problem in windowed mode,
+     * but when running in fullscreen mode,
+     * don't forget to call resize on viewer
+     * mount!
+     */
     ppu->resize(w, h);
 
-
+    //// 5. Create HUD
     osg::Camera* hud = createHUD("images/logo.png", 0.3f, w, h);
 
+    //// Find the geode in the HUD (you might need to store it during creation)
     osg::Geode* hudGeode = dynamic_cast<osg::Geode*>(hud->getChild(0));
 
-
+    //// Add resize handler
     viewer->addEventHandler(
         new HUDResizeHandler(hud, hudGeode, "images/logo.png", 0.3f));
 
-
+    //// 6. Add HUD AFTER realize() (totally allowed)
     root->addChild(hud);
-
-
     root->addChild(labels_model);
 
-
+    //// 7. Main loop
     bool wasMoving = false;
     const float FADE_SPEED = 2.0f;
 
-
+    //// Initialize to visible
     g_currentAlpha = 1.0f;
     g_targetAlpha = 1.0f;
 
+    //// Set initial alpha values
     if (g_hudAlpha.valid())
     {
         g_hudAlpha->set(g_currentAlpha);
@@ -404,15 +447,16 @@ int main(int argc, char** argv)
             {
                 bool moving = google->isMoving();
 
+                // Update target alpha based on movement
                 if (moving)
                 {
-                    g_targetAlpha = 0.0f;
+                    g_targetAlpha = 0.0f; // Fade out when moving
                 }
                 else
                 {
-                    g_targetAlpha = 1.0f;
+                    g_targetAlpha = 1.0f; // Fade in when stopped
 
-
+                    // When just stopped moving, update text content
                     if (wasMoving)
                     {
                         std::ostringstream ss;
@@ -428,7 +472,8 @@ int main(int argc, char** argv)
             }
         }
 
-
+        // ALWAYS smoothly interpolate current alpha toward target (runs every
+        // frame)
         float diff = g_targetAlpha - g_currentAlpha;
         if (std::abs(diff) > 0.001f)
         {
@@ -443,10 +488,11 @@ int main(int argc, char** argv)
                 g_currentAlpha += (diff > 0 ? step : -step);
             }
 
-
+            // Clamp to valid range
             g_currentAlpha = std::max(0.0f, std::min(1.0f, g_currentAlpha));
         }
 
+        // ALWAYS update alpha every frame for smooth animation
         if (g_hudAlpha.valid())
         {
             g_hudAlpha->set(g_currentAlpha);

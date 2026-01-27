@@ -33,11 +33,6 @@
 
 using namespace osg;
 
-const float LABEL_TEXT_SIZE = 18.0f;
-const float ICON_SIZE_WORLD = 8.0f;
-const float MAX_VIEW_DISTANCE = 1500.0f;
-
-
 const float CHAR_WIDTH_EST = 8.0f;
 const float ICON_SCREEN_W = 24.0f;
 const float ICON_SCREEN_H = 24.0f;
@@ -210,8 +205,13 @@ class SortAndCullLabelsCallback : public osg::NodeCallback {
         double distToCam;
     };
 
+    float _maxViewDist;
+    float _textSize; // Used for box calculation
+
 public:
-    SortAndCullLabelsCallback() {}
+    SortAndCullLabelsCallback(float maxViewDist, float textSize)
+        : _maxViewDist(maxViewDist), _textSize(textSize)
+    {}
 
     virtual void operator()(osg::Node* node, osg::NodeVisitor* nv)
     {
@@ -250,7 +250,7 @@ public:
             if (eyePos.z() > 0) continue;
 
             double dist = eyePos.length();
-            if (dist > MAX_VIEW_DISTANCE) continue;
+            if (dist > _maxViewDist) continue;
 
             osg::Vec3 screenPos = centerWorld * mvpw;
 
@@ -265,7 +265,7 @@ public:
             double widthPixels = (labelName.length() * CHAR_WIDTH_EST);
             if (widthPixels < ICON_SCREEN_W) widthPixels = ICON_SCREEN_W;
 
-            double heightPixels = LABEL_TEXT_SIZE + ICON_SCREEN_H;
+            double heightPixels = _textSize + ICON_SCREEN_H;
 
             ScreenBox box;
             box.minX = screenPos.x() - (widthPixels / 2.0) - PADDING;
@@ -384,7 +384,8 @@ getSharedStateSet(const std::string& filename,
 }
 
 static osg::MatrixTransform* createLabelNode(const LabelData& data,
-                                             osg::StateSet* sharedIconStateSet)
+                                             osg::StateSet* sharedIconStateSet,
+                                             float textSize, float iconSize)
 {
     osg::MatrixTransform* mt = new osg::MatrixTransform;
     mt->setMatrix(osg::Matrix::translate(data.position));
@@ -399,8 +400,8 @@ static osg::MatrixTransform* createLabelNode(const LabelData& data,
         bb->setMode(osg::Billboard::POINT_ROT_EYE);
 
         osg::Geometry* iconGeom = new osg::Geometry();
-        float w = ICON_SIZE_WORLD / 2.0f;
-        float h = ICON_SIZE_WORLD / 2.0f;
+        float w = iconSize / 2.0f;
+        float h = iconSize / 2.0f;
 
         osg::Vec3Array* verts = new osg::Vec3Array;
         verts->push_back(osg::Vec3(-w, 0, -h));
@@ -447,7 +448,7 @@ static osg::MatrixTransform* createLabelNode(const LabelData& data,
             osgText::String(data.name, osgText::String::ENCODING_UTF8));
 
         text->setCharacterSizeMode(osgText::Text::SCREEN_COORDS);
-        text->setCharacterSize(LABEL_TEXT_SIZE);
+        text->setCharacterSize(textSize);
 
         text->setAlignment(osgText::Text::CENTER_BOTTOM);
         text->setAxisAlignment(osgText::Text::SCREEN);
@@ -487,9 +488,8 @@ static osg::MatrixTransform* createLabelNode(const LabelData& data,
     return mt;
 }
 
-osg::Node* createHUD() { return new osg::Group; }
-
-osg::Node* process_labels(osg::Matrixd& ltw, const std::string& file_path)
+osg::Node* process_labels(osg::Matrixd& ltw, const std::string& file_path,
+                          float textSize, float iconSize, float maxViewDist)
 {
     std::string shp_path = file_path + "/test_pointss.shp";
     std::string dbf_path = file_path + "/test_pointss.dbf";
@@ -555,13 +555,14 @@ osg::Node* process_labels(osg::Matrixd& ltw, const std::string& file_path)
             iconSS = getSharedStateSet(iconFile, iconStateSets);
         }
 
-        labelsGroup->addChild(createLabelNode(ld, iconSS));
+        labelsGroup->addChild(createLabelNode(ld, iconSS, textSize, iconSize));
     }
 
     std::cout << "--- LABELS: Utworzono " << labelsGroup->getNumChildren()
               << " etykiet." << std::endl;
 
-    labelsGroup->setCullCallback(new SortAndCullLabelsCallback());
+    labelsGroup->setCullCallback(
+        new SortAndCullLabelsCallback(maxViewDist, textSize));
 
     return labelsGroup;
 }
