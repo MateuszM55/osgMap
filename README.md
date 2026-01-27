@@ -1,5 +1,7 @@
 **osgMap – Foundation Project for the Graphics Libraries Course**
 
+![Cover](cover.jpg)
+
 This repository provides a skeleton application that all student groups will use as a common starting point in the Graphics Libraries course.
 The goal of the course is to collaboratively build an interactive 3D map application using OpenSceneGraph (OSG) and OpenStreetMap (OSM) data.
 
